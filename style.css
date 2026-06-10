@@ -499,3 +499,46 @@ body {
 }
 
 
+/* MOBILE FIX */
+@media (max-width: 768px) {
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100vh;
+    z-index: 9999;
+    padding: 16px;
+  }
+
+  .sidebar-content {
+    width: 100%;
+  }
+
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+  }
+
+  .chat-area {
+    width: 100%;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding-bottom: 30px;
+  }
+
+  .user-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  #username-display {
+    font-size: 14px;
+    word-break: break-word;
+  }
+}
+
