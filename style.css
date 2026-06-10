@@ -513,3 +513,105 @@ body {
     100% { transform: rotate(360deg); }
 }
 
+/* ==========================================================================
+   MOBILE RESPONSIVE FIXES (For screens 768px wide or less)
+   ========================================================================== */
+@media (max-width: 768px) {
+    /* 1. ऐप कंटेनर को रिलेटिव रखेंगे ताकि साइडबार इसके ऊपर तैर सके (Overlay) */
+    .app-container {
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+    }
+
+    /* 2. साइडबार को एब्सोल्यूट बनाना ताकि यह चैट एरिया को दबाए नहीं */
+    .sidebar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 280px; /* मोबाइल पर आरामदायक विड्थ */
+        max-width: 80%; /* बहुत छोटी स्क्रीन्स पर ओवरफ्लो न हो */
+        z-index: 9999; /* हेडर और चैट के ऊपर दिखने के लिए */
+        transition: transform 0.3s ease-in-out;
+        box-shadow: 10px 0 25px rgba(0, 0, 0, 0.6);
+        border-right: 1px solid var(--border-color);
+    }
+
+    /* जब साइडबार खुला हो तो उसे अपनी जगह (left: 0) पर दिखाएं */
+    .sidebar:not(.collapsed) {
+        transform: translateX(0);
+    }
+
+    /* जब साइडबार बंद (collapsed) हो, तो उसे स्क्रीन से पूरी तरह बाहर ढकेल दें */
+    .sidebar.collapsed {
+        width: 280px !important; /* विड्थ को 0 न करें, सिर्फ स्क्रीन से बाहर भेजें */
+        padding: 16px !important; /* पैडिंग बनी रहे ताकि डिज़ाइन न टूटे */
+        border-right: 1px solid var(--border-color);
+        transform: translateX(-100%);
+    }
+
+    /* साइडबार के अंदर का कंटेंट हमेशा फिक्स विड्थ पर रहे */
+    .sidebar-content {
+        width: 100%;
+    }
+
+    /* 3. चैट एरिया मोबाइल पर हमेशा 100% विड्थ कवर करेगा */
+    .chat-area {
+        width: 100% !important;
+        flex: 1;
+    }
+
+    /* 4. हेडर एलिमेंट्स को एक लाइन में रखने और टूटने से बचाने के लिए */
+    .chat-header {
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .header-left {
+        gap: 10px;
+        flex: 1;
+        min-width: 0; /* टेक्स्ट ओवरफ्लो रोकने के लिए जरूरी */
+    }
+
+    /* "Tanmay AI" टाइटल मोबाइल पर टूटेगा नहीं और थोड़ा छोटा दिखेगा */
+    .chat-header h2 {
+        font-size: 18px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* 5. मैसेज बबल्स को मोबाइल स्क्रीन के हिसाब से एडजस्ट करना */
+    .messages-container {
+        padding: 16px;
+        padding-bottom: 110px; /* इनपुट बॉक्स के लिए स्पेस */
+    }
+
+    .message {
+        max-width: 88%; /* बबल्स को ज्यादा स्पेस मिलेगा, जिससे टेक्स्ट नीचे नहीं भागेगा */
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+
+    /* 6. चैट फुटर का इनपुट बॉक्स फिक्स */
+    .chat-footer {
+        padding: 12px 16px 16px 16px;
+    }
+
+    /* साइडबार खुला होने पर भी फुटर की विड्थ मोबाइल पर 100% ही रहेगी */
+    .sidebar:not(.collapsed) ~ .chat-area .chat-footer {
+        width: 100% !important;
+    }
+
+    .input-wrapper {
+        padding: 4px 8px;
+    }
+
+    #user-input {
+        font-size: 15px;
+        height: 40px;
+    }
+}
