@@ -23,7 +23,7 @@ body {
     color: var(--text-light);
     display: flex;
     height: 100vh;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .hidden {
@@ -570,7 +570,7 @@ body {
 
   .sidebar-footer {
     margin-top: auto;
-    padding-bottom: 30px;
+    padding-bottom: 50px;
   }
 
   .user-profile {
