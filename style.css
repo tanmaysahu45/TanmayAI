@@ -1,4 +1,7 @@
-/* Global Reset and Colors */
+/* ==========================================================================
+   TANMAY AI - FINAL PREMIUM STYLESHEET (MOBILE SIDEBAR OVERLAY FIX)
+   ========================================================================== */
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -23,7 +26,7 @@ body {
     color: var(--text-light);
     display: flex;
     height: 100vh;
-    overflow-y: auto;
+    overflow: hidden; /* बॉडी का फालतू स्क्रॉल बंद */
 }
 
 .hidden {
@@ -95,7 +98,7 @@ body {
 #google-login-btn img {
     width: 22px;
     height: 22px;
-    object-fit: contain; /* इमेज को सही शेप में रखने के लिए */
+    object-fit: contain;
 }
 
 /* CHAT APP LAYOUT */
@@ -103,8 +106,10 @@ body {
     display: flex;
     width: 100%;
     height: 100vh;
+    position: relative;
 }
 
+/* 🛠️ डेस्कटॉप साइडबार सेटिंग */
 .sidebar {
     width: 260px;
     background-color: var(--sidebar-bg);
@@ -113,8 +118,8 @@ body {
     padding: 16px;
     border-right: 1px solid var(--border-color);
     transition: transform 0.3s ease, width 0.3s ease;
-    overflow: hidden;
-    z-index: 10;
+    height: 100vh;
+    z-index: 9999;
 }
 
 .sidebar.collapsed {
@@ -125,10 +130,10 @@ body {
 }
 
 .sidebar-content {
-    width: 228px;
     display: flex;
     flex-direction: column;
     height: 100%;
+    width: 100%;
 }
 
 .new-chat-btn {
@@ -152,9 +157,11 @@ body {
     background-color: var(--hover-color);
 }
 
+/* 🛠️ चैट हिस्ट्री लिस्ट बीच में स्क्रॉल होगी */
 .history-container {
     flex: 1;
     overflow-y: auto;
+    margin-bottom: 16px;
 }
 
 .history-container h3 {
@@ -186,7 +193,6 @@ body {
     background-color: var(--hover-color);
 }
 
-/* FIXED CSS: Highlight color active section ke liye */
 .active-chat-topic {
     background-color: rgba(168, 199, 250, 0.15) !important;
     border: 1px solid rgba(168, 199, 250, 0.3);
@@ -221,9 +227,12 @@ body {
     background-color: rgba(255, 107, 107, 0.1);
 }
 
+/* 🛠️ साइडबार का निचला हिस्सा हमेशा फिक्स */
 .sidebar-footer {
     padding-top: 16px;
     border-top: 1px solid var(--border-color);
+    background-color: var(--sidebar-bg);
+    margin-top: auto;
 }
 
 #clear-history-btn {
@@ -248,6 +257,7 @@ body {
     gap: 10px;
     font-size: 14px;
     width: 100%;
+    padding-bottom: 8px;
 }
 
 /* MAIN CHAT AREA */
@@ -256,6 +266,7 @@ body {
     display: flex;
     flex-direction: column;
     background-color: var(--chat-bg);
+    width: 100%;
 }
 
 .chat-header {
@@ -449,31 +460,20 @@ body {
     background-color: var(--hover-color);
 }
 
-::-webkit-scrollbar {
-    width: 8px;
-}
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-::-webkit-scrollbar-thumb {
-    background: #3c3d3e;
-    border-radius: 4px;
-}
-
-/* PREMIUM SPINNER/CHAKRI STYLING */
+/* LOADING CHAKRI */
 .custom-loader-wrapper {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: #131314; /* ऐप का डार्क बैकग्राउंड */
+    background-color: #131314;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 20px;
-    z-index: 10000; /* सबसे ऊपर रहेगा */
+    z-index: 10000;
     transition: opacity 0.3s ease;
 }
 
@@ -481,16 +481,9 @@ body {
     width: 50px;
     height: 50px;
     border: 5px solid #3c3d3e;
-    border-top: 5px solid #a8c7fa; /* प्रीमियम ब्लू कलर */
+    border-top: 5px solid #a8c7fa;
     border-radius: 50%;
     animation: ghumo 1s linear infinite;
-}
-
-.loader-text {
-    color: #e3e3e3;
-    font-size: 16px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
 }
 
 @keyframes ghumo {
@@ -498,47 +491,54 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-
-/* MOBILE FIX */
+/* ==========================================================================
+   🛠️ 100% परफेक्ट मोबाइल रिस्पॉन्सिव कोड (फ़िक्स किया हुआ हिस्सा)
+   ========================================================================== */
 @media (max-width: 768px) {
-
   .sidebar {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100% !important;
+    width: 280px !important; /* 🌟 जादुई बदलाव: अब पूरी स्क्रीन नहीं घेरेगा, सिर्फ 280px का रहेगा */
     height: 100vh;
     z-index: 9999;
     padding: 16px;
+    box-shadow: 4px 0 15px rgba(0,0,0,0.6); /* बाजू में परछाईं ताकि प्रीमियम दिखे */
   }
 
   .sidebar-content {
     width: 100%;
+    height: 100%;
   }
 
+  /* जब साइडबार बंद हो तो स्क्रीन से बाहर चला जाए */
   .sidebar.collapsed {
     transform: translateX(-100%);
+    width: 0 !important;
+    padding: 0;
   }
 
+  /* 🌟 जादुई बदलाव: जब साइडबार खुला हो, तो पीछे का चैट एरिया हल्का सा दिखेगा, जहाँ टच करते ही साइडबार बंद हो जाएगा */
   .chat-area {
     width: 100%;
   }
 
   .sidebar-footer {
-    margin-top: auto;
-    padding-bottom: 30px;
+    padding-bottom: 24px; /* 🌟 कटना बंद: नीचे नेविगेशन बार के लिए एक्स्ट्रा स्पेस दिया */
   }
 
   .user-profile {
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap; /* नाम और आइकॉन एक ही लाइन में रहेंगे */
   }
 
   #username-display {
     font-size: 14px;
-    word-break: break-word;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px; /* नाम बहुत बड़ा होने पर कटेगा नहीं */
   }
 }
-
