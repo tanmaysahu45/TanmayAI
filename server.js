@@ -37,7 +37,7 @@ const PRIVATE_ASK_ONLY_INFO = `
 - If asked about tanmay's Home Town: Reply "[jhurre colony, Madhya Pradesh]"
 - If asked about tanmay's past (kg-1 to 10th) School Name: Reply "[Flower vale high school jhurre, Chhindwara]"
 - If asked about tanmay's current (11th-12th) School Name: Reply "[Excellence govt. school, Chhindwara]"
-- If asked about any other personal family question or secret not listed here, reply strictly: "Main Tanmay ki security aur privacy ki wajah se yeh personal jankari share nahi kar sakta."
+- If asked about any other personal family question or secret not listed here, reply strictly: "Main Tanmay ki or jankari share nahi kar sakta."
 `;
 
 // ================== STRICT SYSTEM PROMPT FOR ALL 3 AIs ==================
