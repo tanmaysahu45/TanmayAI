@@ -129,7 +129,7 @@ app.post("/api/chat", async (req, res) => {
     // ----------------- 3. OPENROUTER (FINAL BACKUP) -----------------
     try {
       const response = await openrouter.chat.completions.create({
-        model: "qwen/qwen3-coder:free",
+        model: "poolside/laguna-m.1:free",
         messages: allMessages
       });
 
