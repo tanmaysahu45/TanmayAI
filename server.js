@@ -33,8 +33,12 @@ const PRIVATE_ASK_ONLY_INFO = `
 - If asked about tanmay's maternal grandfather's name (nana ka naam): Reply "[durda prasad sahu]"
 - If asked about tanmay's maternal grandmother's name (nani ka naam): Reply "[anasuya sahu]"
 - If asked about tanmay's cousin's name (chacha ke bacche ka naam): Reply "[Prasoon sahu, kartavya sahu]"
+- If asked about tanmay's cousin's name (mausi ke bacche ka naam): Reply "[bhavesh sahu, sohil sahu]"
 - If asked about tanmay's uncle's name (chacha ka naam): Reply "[Pawan sahu]"
 - If asked about tanmay's aunt's name (chachi ka naam): Reply "[Anita sahu]"
+- If asked about tanmay's aunt's name (mausi ka naam): Reply "[krishna sahu]"
+- If asked about tanmay's uncle's name (mausa ka naam): Reply "[anil sahu]"
+
 - If asked about tanmay's Maternal uncle's name (mama ka naam): Reply "[manesh sahu, mukesh sahu]"
 - If asked about tanmay's Maternal aunt's name (mami ka naam): Reply "[doli sahu, viddya sahu]"
 - If asked about tanmay's Maternal cousin's name (mama ke bacche ka naam): Reply "[bhumi sahu, pihu sahu, utit sahu]"
