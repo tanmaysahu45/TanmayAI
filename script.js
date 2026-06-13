@@ -16,6 +16,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
+// 🛠️ ऐप और वेबसाइट दोनों में लॉगिन फिक्स करने के लिए डायरेक्ट OAuth URL
+const googleOAuthUrl = `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
+
 const loginContainer = document.getElementById('login-container');
 const appContainer = document.getElementById('app-container');
 const googleLoginBtn = document.getElementById('google-login-btn');
@@ -97,8 +100,18 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+// 🛠️ संशोधित लॉगिन बटन: जो ऐप और वेबसाइट दोनों जगह परफेक्ट चलेगा
 googleLoginBtn.addEventListener('click', () => {
-    signInWithPopup(auth, provider).catch(err => alert("Login Error: " + err.message));
+    // चेक कर रहा है कि क्या यूज़र मोबाइल ऐप (WebView) के अंदर है
+    const isWebView = /wv|WebView/i.test(window.navigator.userAgent) || (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
+
+    if (isWebView) {
+        // मोबाइल ऐप के अंदर डायरेक्ट रीडायरेक्ट करेगा (बिना एरर के लॉगिन होगा)
+        window.location.href = googleOAuthUrl;
+    } else {
+        // नॉर्मल ब्राउज़र/वेबसाइट पर सुंदर पॉप-अप खोलेगा
+        signInWithPopup(auth, provider).catch(err => alert("Login Error: " + err.message));
+    }
 });
 
 logoutBtn.addEventListener('click', () => {
@@ -113,13 +126,12 @@ sidebarToggleBtn.addEventListener('click', (e) => {
     sidebar.classList.toggle('collapsed');
 });
 
-// ✅ नई चैट की शुरुआत अब शुद्ध इंग्लिश में होगी!
+// नई चैट की शुरुआत
 function startNewChatSession() {
     currentChatId = "chat_" + Date.now(); 
     localStorage.setItem('activeChatId', currentChatId); 
     chatHistoryContext = [];
     
-    // शुरुआत का टेक्स्ट इंग्लिश में सेट कर दिया
     messagesContainer.innerHTML = `
         <div class="message ai-message">
             <div class="message-text">New chat started! Ask me anything, how can I help you?</div>
@@ -130,7 +142,6 @@ function startNewChatSession() {
     resetSpeakingButtons();
     document.querySelectorAll('.history-item-wrapper').forEach(el => el.classList.remove('active-chat-topic'));
     
-    // पहला वेलकम मैसेज इंग्लिश टोन में बोलेगा
     if (isVoiceEnabled && !isInitialLoadRunning) {
         setTimeout(() => {
             const firstBtn = messagesContainer.querySelector('.msg-speak-btn');
@@ -142,7 +153,7 @@ function startNewChatSession() {
                 currentSpeakingButton = firstBtn;
                 
                 const utterance = new SpeechSynthesisUtterance("New chat started! Ask me anything, how can I help you?");
-                utterance.lang = 'en-US'; // शुरुआत इंग्लिश में
+                utterance.lang = 'en-US';
                 utterance.onend = () => { resetSpeakingButtons(); };
                 utterance.onerror = () => { resetSpeakingButtons(); };
                 window.speechSynthesis.speak(utterance);
@@ -157,7 +168,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.continuous = false;
-    recognition.lang = 'hi-IN'; // माइक डिफ़ॉल्ट हिंदी/हिंग्लिश सुनेगा
+    recognition.lang = 'hi-IN';
     recognition.onstart = () => { micBtn.classList.add('listening'); userInput.placeholder = "Sunaai de raha hai, boliye..."; };
     recognition.onend = () => { micBtn.classList.remove('listening'); userInput.placeholder = "Ask Tanmay AI..."; };
     recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; sendMessage(); };
@@ -171,7 +182,6 @@ toggleVoiceBtn.addEventListener('click', () => {
     if (!isVoiceEnabled) { window.speechSynthesis.cancel(); resetSpeakingButtons(); }
 });
 
-// बाकी मैसेजेस के लिए नॉर्मल बोलना (हिंग्लिश/हिंदी सपोर्ट)
 window.speakIndividualMessage = function(buttonElement) {
     const messageText = buttonElement.parentNode.querySelector('.message-text').innerText;
     if (currentSpeakingButton === buttonElement && window.speechSynthesis.speaking) {
@@ -184,7 +194,6 @@ window.speakIndividualMessage = function(buttonElement) {
     
     const utterance = new SpeechSynthesisUtterance(messageText);
     
-    // अगर मैसेज में शुरुआत का इंग्लिश टेक्स्ट है तो en-US, बाकी सबके लिए hi-IN
     if (messageText.includes("New chat started!")) {
         utterance.lang = 'en-US';
     } else {
