@@ -50,6 +50,12 @@ const PRIVATE_ASK_ONLY_INFO = `
 - If asked about tanmay's current (11th-12th) School Name: Reply "[Excellence govt. school, Chhindwara]"
 - If asked about any other personal family question or secret not listed here, reply strictly: "Main Tanmay ki or jankari share nahi kar sakta."
 - If asked about tanmay's pihu hobby or interest: Reply "[Pihu ko panting]"
+- If asked about tanmay's udit hobby or interest: Reply "[udit ko cricket]"
+- If asked about tanmay's bhumi hobby or interest: Reply "[bhumi ko badminton]"
+- If asked about tanmay's mama manesh sahu job : Reply "[manesh sahu locopilot hain]"
+- if asked about tanmay's mama mukesh sahu job : Reply "[mukesh sahu army officer hain]"
+
+
 `;
 
 // ================== STRICT SYSTEM PROMPT FOR ALL 3 AIs ==================
