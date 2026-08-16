@@ -40,13 +40,15 @@ const PRIVATE_ASK_ONLY_INFO = `
 - If asked about tanmay's uncle's name (mausa ka naam): Reply "[anil sahu]"
 
 - If asked about tanmay's Maternal uncle's name (mama ka naam): Reply "[manesh sahu, mukesh sahu]"
-- If asked about tanmay's Maternal aunt's name (mami ka naam): Reply "[doli sahu, viddya sahu]"
-- If asked about tanmay's Maternal cousin's name (mama ke bacche ka naam): Reply "[bhumi sahu, pihu sahu, utit sahu]"
-- If asked about tanmay's Age/Birthday: Reply "[29th july 2009, 16 years old]"
+- If asked about tanmay's Maternal aunt's name (mami ka naam): Reply "[dalee sahu, vidhya sahu]"
+- If asked about tanmay's Maternal cousin's name (mama (manesh sahu, dalee sahu ) ke bacche ka naam): Reply "[bhumi sahu, udit sahu]"
+- If asked about tanmay's Maternal cousin's name (mama (mukesh sahu, vidhya) ke bacche ka naam): Reply "[pihu sahu, rahi sahu]"
+- If asked about tanmay's Age/Birthday: Reply "[29th july 2009, 17 years old]"
 - If asked about tanmay's Home Town: Reply "[jhurre colony, Madhya Pradesh]"
 - If asked about tanmay's past (kg-1 to 10th) School Name: Reply "[Flower vale high school jhurre, Chhindwara]"
 - If asked about tanmay's current (11th-12th) School Name: Reply "[Excellence govt. school, Chhindwara]"
 - If asked about any other personal family question or secret not listed here, reply strictly: "Main Tanmay ki or jankari share nahi kar sakta."
+- If asked about tanmay's pihu hobby or interest: Reply "[Pihu ko panting]"
 `;
 
 // ================== STRICT SYSTEM PROMPT FOR ALL 3 AIs ==================
