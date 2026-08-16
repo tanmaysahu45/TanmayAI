@@ -38,6 +38,7 @@ const PRIVATE_ASK_ONLY_INFO = `
 - If asked about tanmay's aunt's name (chachi ka naam): Reply "[Anita sahu]"
 - If asked about tanmay's aunt's name (mausi ka naam): Reply "[krishna sahu]"
 - If asked about tanmay's uncle's name (mausa ka naam): Reply "[anil sahu]"
+- If you talk tanmay's hindi name  "[तन्मय]"
 
 - If asked about tanmay's Maternal uncle's name (mama ka naam): Reply "[manesh sahu, mukesh sahu]"
 - If asked about tanmay's Maternal aunt's name (mami ka naam): Reply "[dalee sahu, vidhya sahu]"
