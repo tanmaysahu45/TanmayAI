@@ -36,7 +36,7 @@ const BASE_PRIVATE_FACTS = `
 - Tanmay's Maternal aunt's name (mami): "[dalee sahu, vidhya sahu]"
 - Tanmay's Maternal cousins: "[bhumi sahu, udit sahu, pihu sahu, rahi sahu]"
 - Tanmay's Birthday: "[29th July 2009, 17 years old]"
-- Tanmay's Home Town: "[jhurre colony, Madhya Pradesh]"
+- Tanmay's Home Town: "[Jhurre colony, Chhindwara, Madhya Pradesh]"
 - Tanmay's School: "[Flower vale high school (past), Excellence govt. school (current)]"
 - Mama Manesh job: "[Locopilot]"
 - Mama Mukesh job: "[Army Officer]"
@@ -46,26 +46,27 @@ function buildSystemPrompt(userName, isAdmin, globalRules = [], personalMemory =
   const globalRulesStr = globalRules.length > 0 ? globalRules.map(r => `* ${r}`).join("\n") : "None";
   const personalMemoryStr = personalMemory.length > 0 ? personalMemory.map(m => `* ${m}`).join("\n") : "None";
 
-  return `You are Tanmay AI, a helpful, polite, and intelligent AI assistant.
+  return `You are Tanmay AI, an intelligent, smart, and helpful AI assistant created by Tanmay Sahu.
 
-USER CONTEXT:
-- Talking with: "${userName}"
-- Admin/Creator: ${isAdmin ? "YES (Tanmay Sahu)" : "NO"}
+USER INFO:
+- Current User: "${userName}"
+- Is Admin?: ${isAdmin ? "YES" : "NO"}
 
-🔥 CRITICAL LIVE OVERRIDES (TOP PRIORITY - ALWAYS FOLLOW FIRST):
+🔥 CRITICAL LEARNED RULES (TOP PRIORITY):
 ${globalRulesStr}
 
 USER SPECIFIC MEMORY:
 ${personalMemoryStr}
 
-KNOWN BASE FACTS:
+TANMAY'S FAMILY FACTS:
 ${BASE_PRIVATE_FACTS}
 
-CORE BEHAVIOR RULES:
-1. UNKNOWN INFO POLICY: If the user asks about something specific (e.g. what someone does, their job, private details) that is NOT present in the facts or overrides above, DO NOT give rude robotic refusals. Simply and politely reply: "Mujhe is baare mein abhi jankari nahi hai."
-2. Reply in the same language/script the user speaks (Hindi, Hinglish, or English).
-3. If asked who created you: "Main Tanmay AI hun, mujhe Tanmay Sahu ne banaya hai."
-4. Always prioritize live learned overrides above the base facts.`;
+CORE INSTRUCTIONS:
+1. GENERAL KNOWLEDGE: You are a highly capable AI. For general questions (like 'Prime Minister of India', math, science, programming, history, etc.), ANSWER NORMALLY AND ACCURATELY using your vast knowledge. DO NOT say you don't know.
+2. PERSONAL IDENTITY: If the user asks "Mera naam kya hai?", answer using their 'Current User' name or 'User Specific Memory'.
+3. UNKNOWN FAMILY INFO: ONLY if the user asks a very specific private question about Tanmay's family that is NOT in the facts above, reply with: "Mujhe is baare mein abhi jankari nahi hai."
+4. ALWAYS prioritize Critical Learned Rules over everything else.
+5. Keep your tone natural and polite. Reply in the same language the user writes (Hindi, English, or Hinglish).`;
 }
 
 app.post("/api/chat", async (req, res) => {
@@ -79,9 +80,9 @@ app.post("/api/chat", async (req, res) => {
       personalMemory || []
     );
 
-    const safeMessages = Array.isArray(messages) && messages.length > 0 
-      ? messages 
-      : [{ role: "user", content: "Hi" }];
+    // Filter messages to avoid empty context crashes
+    const safeMessages = Array.isArray(messages) ? messages.filter(m => m.content) : [];
+    if (safeMessages.length === 0) safeMessages.push({ role: "user", content: "Hi" });
 
     const allMessages = [{ role: "system", content: systemPromptContent }, ...safeMessages];
 
@@ -92,11 +93,10 @@ app.post("/api/chat", async (req, res) => {
         messages: allMessages,
         temperature: 0.5
       });
-
       const reply = response.choices?.[0]?.message?.content;
       if (reply) return res.json({ reply });
     } catch (err) {
-      console.log("Groq fallback triggered:", err.message);
+      console.log("Groq Error:", err.message);
     }
 
     // 2. GEMINI (Backup Attempt)
@@ -105,17 +105,20 @@ app.post("/api/chat", async (req, res) => {
         model: "gemini-1.5-flash",
         systemInstruction: systemPromptContent
       });
-
-      const contents = safeMessages.map(m => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content || "Hello" }]
-      }));
+      
+      const contents = [];
+      for (const m of safeMessages) {
+          contents.push({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: [{ text: m.content }]
+          });
+      }
 
       const result = await model.generateContent({ contents });
-      const reply = result.response.text();
+      const reply = result.response?.text();
       if (reply) return res.json({ reply });
     } catch (err) {
-      console.log("Gemini fallback triggered:", err.message);
+      console.log("Gemini Error:", err.message);
     }
 
     // 3. OPENROUTER (Final Backup)
@@ -124,18 +127,18 @@ app.post("/api/chat", async (req, res) => {
         model: "meta-llama/llama-3.1-8b-instruct:free",
         messages: allMessages
       });
-
       const reply = response.choices?.[0]?.message?.content;
       if (reply) return res.json({ reply });
     } catch (err) {
-      console.log("OpenRouter fallback triggered:", err.message);
+      console.log("OpenRouter Error:", err.message);
     }
 
-    return res.json({ reply: "Mujhe is baare mein abhi jankari nahi hai." });
+    // 🚨 अगर अब कोई दिक्कत आई, तो तुम्हें असली कारण पता चलेगा!
+    return res.json({ reply: "API Server Error: All AI models failed. Kripya apne API keys ya server check karein." });
 
   } catch (error) {
     console.error("Server execution error:", error);
-    return res.json({ reply: "Server se connect karne me dikkat aayi, kripya dobara try karein." });
+    return res.json({ reply: "Backend me kuch dikkat hai. Kripya try again." });
   }
 });
 
