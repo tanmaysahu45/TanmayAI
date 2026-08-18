@@ -16,7 +16,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// 🛠️ ऐप और वेबसाइट दोनों में लॉगिन फिक्स करने के लिए डायरेक्ट OAuth URL
 const googleOAuthUrl = `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
 const loginContainer = document.getElementById('login-container');
@@ -47,11 +46,9 @@ let currentChatId = null;
 let chatHistoryContext = [];
 let isInitialLoadRunning = true; 
 
-// शुरुआत में दोनों स्क्रीन छुपाकर रखेंगे ताकि कोई झटका न लगे
 loginContainer.classList.add('hidden');
 appContainer.classList.add('hidden');
 
-// गोल-गोल घूमने वाली चकरी को स्क्रीन पर बनाना
 const globalLoader = document.createElement('div');
 globalLoader.classList.add('custom-loader-wrapper');
 globalLoader.innerHTML = `
@@ -60,7 +57,6 @@ globalLoader.innerHTML = `
 `;
 document.body.appendChild(globalLoader);
 
-// चकरी को हटाने का फंक्शन
 function removeLoader() {
     if (globalLoader && document.body.contains(globalLoader)) {
         globalLoader.style.opacity = '0';
@@ -70,7 +66,6 @@ function removeLoader() {
     }
 }
 
-// टैब रीफ्रेश चेक करने का लॉजिक (रीफ्रेश पर पुरानी चैट रहेगी, फ्रेश ओपन पर नई चैट)
 if (!sessionStorage.getItem('isTabRefreshed')) {
     localStorage.removeItem('activeChatId'); 
     sessionStorage.setItem('isTabRefreshed', 'true');
@@ -79,11 +74,16 @@ if (!sessionStorage.getItem('isTabRefreshed')) {
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        usernameDisplay.innerText = user.displayName;
+        const displayName = user.displayName || user.email?.split('@')[0] || "User";
+        usernameDisplay.innerText = displayName;
+        
         if (user.photoURL) {
             userAvatar.src = user.photoURL;
             userAvatar.style.display = 'block';
             defaultUserIcon.style.display = 'none';
+        } else {
+            userAvatar.style.display = 'none';
+            defaultUserIcon.style.display = 'inline-block';
         }
         
         await loadAllSidebarTopics(true); 
@@ -100,7 +100,6 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// 🛠️ संशोधित लॉगिन बटन
 googleLoginBtn.addEventListener('click', () => {
     const isWebView = /wv|WebView/i.test(window.navigator.userAgent) || (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
 
@@ -123,7 +122,6 @@ sidebarToggleBtn.addEventListener('click', (e) => {
     sidebar.classList.toggle('collapsed');
 });
 
-// नई चैट की शुरुआत
 function startNewChatSession() {
     currentChatId = "chat_" + Date.now(); 
     localStorage.setItem('activeChatId', currentChatId); 
@@ -287,9 +285,11 @@ userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessa
 async function saveMessageToFirebase(chatId, userText, aiText) {
     if (!currentUser) return;
     try {
+        const calculatedName = currentUser.displayName || currentUser.email?.split('@')[0] || "User";
+        
         await addDoc(collection(db, "chat_messages"), {
             uid: currentUser.uid,
-            userName: currentUser.displayName || "No Name",
+            userName: calculatedName,
             userEmail: currentUser.email || "No Email",
             userPhoto: currentUser.photoURL || "",
             chatId: chatId,
