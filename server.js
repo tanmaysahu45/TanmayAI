@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// ================== APIs SETUP ==================
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const openrouter = new OpenAI({
@@ -62,7 +63,7 @@ TANMAY'S FAMILY FACTS:
 ${BASE_PRIVATE_FACTS}
 
 CORE INSTRUCTIONS:
-1. GENERAL KNOWLEDGE: You are a highly capable AI. For general questions (like 'Prime Minister of India', math, science, programming, history, etc.), ANSWER NORMALLY AND ACCURATELY using your vast knowledge. DO NOT say you don't know.
+1. GENERAL KNOWLEDGE: You are a highly capable AI. For general questions (like 'Prime Minister of India', math, science, programming, history, etc.), ANSWER NORMALLY AND ACCURATELY. DO NOT say you don't know.
 2. PERSONAL IDENTITY: If the user asks "Mera naam kya hai?", answer using their 'Current User' name or 'User Specific Memory'.
 3. UNKNOWN FAMILY INFO: ONLY if the user asks a very specific private question about Tanmay's family that is NOT in the facts above, reply with: "Mujhe is baare mein abhi jankari nahi hai."
 4. ALWAYS prioritize Critical Learned Rules over everything else.
@@ -81,67 +82,73 @@ app.post("/api/chat", async (req, res) => {
     );
 
     // Filter messages to avoid empty context crashes
-    const safeMessages = Array.isArray(messages) ? messages.filter(m => m.content) : [];
-    if (safeMessages.length === 0) safeMessages.push({ role: "user", content: "Hi" });
-
+    const safeMessages = Array.isArray(messages) && messages.length > 0 ? messages : [{ role: "user", content: "Hi" }];
     const allMessages = [{ role: "system", content: systemPromptContent }, ...safeMessages];
 
-    // 1. GROQ (Primary Attempt)
+    // ----------------- 1. GROQ (FIRST ATTEMPT) -----------------
     try {
       const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: allMessages,
-        temperature: 0.5
+        temperature: 0.4
       });
-      const reply = response.choices?.[0]?.message?.content;
-      if (reply) return res.json({ reply });
+
+      const reply = response.choices[0]?.message?.content || "";
+      console.log(`👉 Response delivered by Groq for user: ${currentUserName}`);
+      return res.json({ reply });
+
     } catch (err) {
-      console.log("Groq Error:", err.message);
+      console.log("❌ Groq failed, switching to Gemini...");
     }
 
-    // 2. GEMINI (Backup Attempt)
+    // ----------------- 2. GEMINI (SECOND ATTEMPT) -----------------
     try {
       const model = gemini.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash",
         systemInstruction: systemPromptContent
       });
-      
-      const contents = [];
-      for (const m of safeMessages) {
-          contents.push({
-              role: m.role === "assistant" ? "model" : "user",
-              parts: [{ text: m.content }]
-          });
-      }
+
+      const contents = safeMessages.map(m => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }]
+      }));
 
       const result = await model.generateContent({ contents });
-      const reply = result.response?.text();
-      if (reply) return res.json({ reply });
+      const reply = result.response.text();
+
+      console.log(`👉 Response delivered by Gemini for user: ${currentUserName}`);
+      return res.json({ reply });
+
     } catch (err) {
-      console.log("Gemini Error:", err.message);
+      console.log("❌ Gemini failed, switching to OpenRouter...");
     }
 
-    // 3. OPENROUTER (Final Backup)
+    // ----------------- 3. OPENROUTER (FINAL BACKUP) -----------------
     try {
       const response = await openrouter.chat.completions.create({
-        model: "meta-llama/llama-3.1-8b-instruct:free",
+        model: "poolside/laguna-m.1:free",
         messages: allMessages
       });
-      const reply = response.choices?.[0]?.message?.content;
-      if (reply) return res.json({ reply });
+
+      const reply = response.choices[0]?.message?.content || "";
+      console.log(`👉 Response delivered by OpenRouter for user: ${currentUserName}`);
+      return res.json({ reply });
+
     } catch (err) {
-      console.log("OpenRouter Error:", err.message);
+      console.error("❌ OpenRouter Error:", err);
     }
 
-    // 🚨 अगर अब कोई दिक्कत आई, तो तुम्हें असली कारण पता चलेगा!
-    return res.json({ reply: "API Server Error: All AI models failed. Kripya apne API keys ya server check karein." });
+    // अगर सारे AI फेल हो जाएं
+    return res.status(500).json({
+      reply: "Sabhi AI services abhi unavailable hain. Kripya thodi der baad try karein."
+    });
 
   } catch (error) {
-    console.error("Server execution error:", error);
-    return res.json({ reply: "Backend me kuch dikkat hai. Kripya try again." });
+    console.error("Server Error:", error);
+    return res.status(500).json({ reply: "Server Error" });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Tanmay AI Server is running properly on port ${PORT}`);
+  console.log(`🚀 Tanmay AI Hybrid Server running on port ${PORT}`);
 });
