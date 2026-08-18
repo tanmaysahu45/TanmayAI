@@ -100,16 +100,13 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// 🛠️ संशोधित लॉगिन बटन: जो ऐप और वेबसाइट दोनों जगह परफेक्ट चलेगा
+// 🛠️ संशोधित लॉगिन बटन
 googleLoginBtn.addEventListener('click', () => {
-    // चेक कर रहा है कि क्या यूज़र मोबाइल ऐप (WebView) के अंदर है
     const isWebView = /wv|WebView/i.test(window.navigator.userAgent) || (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
 
     if (isWebView) {
-        // मोबाइल ऐप के अंदर डायरेक्ट रीडायरेक्ट करेगा (बिना एरर के लॉगिन होगा)
         window.location.href = googleOAuthUrl;
     } else {
-        // नॉर्मल ब्राउज़र/वेबसाइट पर सुंदर पॉप-अप खोलेगा
         signInWithPopup(auth, provider).catch(err => alert("Login Error: " + err.message));
     }
 });
@@ -292,6 +289,9 @@ async function saveMessageToFirebase(chatId, userText, aiText) {
     try {
         await addDoc(collection(db, "chat_messages"), {
             uid: currentUser.uid,
+            userName: currentUser.displayName || "No Name",
+            userEmail: currentUser.email || "No Email",
+            userPhoto: currentUser.photoURL || "",
             chatId: chatId,
             userText: userText,
             aiText: aiText,
@@ -328,7 +328,7 @@ async function loadAllSidebarTopics(isInitialLoad = false) {
             
             if (savedChatId && seenChatIds.has(savedChatId)) {
                 currentChatId = savedChatId;
-                await loadFullChatSession(currentChatId);
+                await loadFullChatSession(currentChatId); 
                 isInitialLoadRunning = false; 
             } else {
                 startNewChatSession();
