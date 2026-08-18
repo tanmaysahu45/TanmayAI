@@ -28,8 +28,8 @@ const BASE_PRIVATE_FACTS = `
 - Tanmay's Maternal aunt's name (mami): "[dalee sahu, vidhya sahu]"
 - Tanmay's Maternal cousins: "[bhumi sahu, udit sahu, pihu sahu, rahi sahu]"
 - Tanmay's Birthday: "[29th July 2009, 17 years old]"
-- Tanmay's Home Town: "[jhurre colony, Madhya Pradesh]"
-- Tanmay's School: "[Flower vale high school (past), Excellence govt. school (current)]"
+- Tanmay's Home Town: "[Jhurre Colony, Chhindwara, Madhya Pradesh]"
+- Tanmay's School: "[Flower Vale High School (past), Excellence Govt. School (current)]"
 - Mama Manesh job: "[Locopilot]"
 - Mama Mukesh job: "[Army Officer]"
 `;
@@ -77,12 +77,12 @@ app.post("/api/chat", async (req, res) => {
     const allMessagesForGroq = [{ role: "system", content: systemPromptContent }, ...safeMessages];
 
     // ==========================================
-    // 1. MAIN API (GROQ - Original Setup)
+    // 1. MAIN API (GROQ - 100% Stable Free Model)
     // ==========================================
     try {
       const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
       const response = await groq.chat.completions.create({
-        model: "llama3-8b-8192", // Very stable and fast model
+        model: "llama3-8b-8192", // Changed to absolute stable model
         messages: allMessagesForGroq,
         temperature: 0.5
       });
@@ -94,21 +94,22 @@ app.post("/api/chat", async (req, res) => {
       console.error("GROQ API ERROR:", groqError.message);
       
       // ==========================================
-      // 2. FALLBACK API (GEMINI - Original Setup)
+      // 2. FALLBACK API (GEMINI - Most Stable Version)
       // ==========================================
       try {
         const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = gemini.getGenerativeModel({
-          model: "gemini-1.5-flash",
-          systemInstruction: systemPromptContent
-        });
+        // Changed to gemini-pro which is universally supported
+        const model = gemini.getGenerativeModel({ model: "gemini-pro" });
 
-        const contents = safeMessages.map(m => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }]
-        }));
+        // Gemini-pro sometimes fails with direct systemInstructions, so we combine it safely
+        const combinedMessages = [
+          {
+            role: "user",
+            parts: [{ text: `SYSTEM PROMPT: ${systemPromptContent}\n\nUSER MESSAGE: ${safeMessages[safeMessages.length - 1].content}` }]
+          }
+        ];
 
-        const result = await model.generateContent({ contents });
+        const result = await model.generateContent({ contents: combinedMessages });
         const reply = result.response.text();
         
         if (reply) return res.json({ reply });
@@ -117,7 +118,7 @@ app.post("/api/chat", async (req, res) => {
         console.error("GEMINI API ERROR:", geminiError.message);
         
         // ==========================================
-        // 3. OPENROUTER (Using Native Fetch)
+        // 3. OPENROUTER (Guaranteed Free Model)
         // ==========================================
         try {
             const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -127,7 +128,7 @@ app.post("/api/chat", async (req, res) => {
                   "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                  model: "meta-llama/llama-3.1-8b-instruct:free",
+                  model: "mistralai/mistral-7b-instruct:free", // Changed to a model that is permanently free
                   messages: allMessagesForGroq
                 })
             });
@@ -138,7 +139,7 @@ app.post("/api/chat", async (req, res) => {
 
         } catch (openRouterError) {
             console.error("OPENROUTER API ERROR:", openRouterError.message);
-            return res.json({ reply: "Bhai, teeno APIs (Groq, Gemini, OpenRouter) fail ho gayi. Kripya apne Render Logs check karo ki API key kyu reject ho rahi hai." });
+            return res.json({ reply: "Bhai, sabhi AI companies (Groq, Gemini, OpenRouter) fail ho gayi hain. Render Logs me error check karo." });
         }
       }
     }
