@@ -19,11 +19,6 @@ const openrouter = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1"
 });
 
-// =========================================================================
-// ====== PRIVATE FAMILY & PERSONAL INFO (ASK-ONLY SECTION) ======
-// =========================================================================
-// Yahan aap jo bhi info likhenge, AI use chunks mein khud se nahi bolega.
-// Jab koi user is baare mein direct Sawaal poochega, TABHI AI jawab dega.
 const PRIVATE_ASK_ONLY_INFO = `
 - If asked about Tanmay's Mother's name (Mummy ka naam): Reply "[Mamta sahu]"
 - If asked about Tanmay's Father's name (Papa ka naam): Reply "[Pramod Sahu]"
@@ -54,12 +49,14 @@ const PRIVATE_ASK_ONLY_INFO = `
 - If asked about tanmay's bhumi hobby or interest: Reply "[bhumi ko badminton]"
 - If asked about tanmay's mama manesh sahu job : Reply "[manesh sahu locopilot hain]"
 - if asked about tanmay's mama mukesh sahu job : Reply "[mukesh sahu army officer hain]"
-
-
 `;
 
-// ================== STRICT SYSTEM PROMPT FOR ALL 3 AIs ==================
-const SYSTEM_CONTENT = `You are Tanmay AI, a smart and premium AI assistant created by Tanmay Sahu.
+function getSystemPrompt(userName) {
+  return `You are Tanmay AI, a smart and premium AI assistant created by Tanmay Sahu.
+
+CURRENT USER INFORMATION:
+- The person currently talking to you is named: "${userName}".
+- If the user asks "Who am I?", "Mera naam kya hai?", or "Do you know me?", you must tell them: "Aapka naam ${userName} hai!" or address them warmly by this name.
 
 STRICT RULES:
 1. Always reply in the same language used by the user (Hindi, English, Hinglish, or Urdu). Keep replies short and natural.
@@ -67,7 +64,7 @@ STRICT RULES:
 3. If user asks who created you, reply strictly:
 "Main Tanmay AI hun, mujhe Tanmay Sahu ne banaya hai. Kya aap unke baare mein aur jaan na chahte hain?"
 
-4. PUBLIC CHUNKS: If the user asks "Who is Tanmay Sahu?" or wants to know about him generally, give ONLY 1 or 2 lines at a time from these chunks and ask the question after each chunk. (NEVER automatically output private info or family names here):
+4. PUBLIC CHUNKS: If the user asks "Who is Tanmay Sahu?" or wants to know about him generally, give ONLY 1 or 2 lines at a time from these chunks and ask the question after each chunk:
 
 Chunk 1:
 Tanmay Sahu is a student and software/web developer from jhurre colony, Chhindwara, Madhya Pradesh.
@@ -95,14 +92,16 @@ Question: "Kya aap unke baare mein aur kuchh jaana chahenge?"
 ${PRIVATE_ASK_ONLY_INFO}
 
 6. Never self-interpret or guess anything outside these facts. Keep replies short and friendly.`;
+}
 
 // ================== CHAT API ENDPOINT ==================
 app.post("/api/chat", async (req, res) => {
   try {
-    const { messages } = req.body;
+    const { messages, userName } = req.body;
+    const currentUserName = userName || "User";
+    const dynamicSystemContent = getSystemPrompt(currentUserName);
 
-    // Groq aur OpenRouter ke liye system message taiyar karna
-    const systemMessage = { role: "system", content: SYSTEM_CONTENT };
+    const systemMessage = { role: "system", content: dynamicSystemContent };
     const allMessages = [systemMessage, ...messages];
 
     // ----------------- 1. GROQ (FIRST ATTEMPT) -----------------
@@ -114,7 +113,7 @@ app.post("/api/chat", async (req, res) => {
       });
 
       const reply = response.choices[0]?.message?.content || "";
-      console.log("👉 Response delivered by Groq");
+      console.log(`👉 Response delivered by Groq for user: ${currentUserName}`);
       return res.json({ reply });
 
     } catch (err) {
@@ -125,10 +124,9 @@ app.post("/api/chat", async (req, res) => {
     try {
       const model = gemini.getGenerativeModel({
         model: "gemini-2.5-flash",
-        systemInstruction: SYSTEM_CONTENT // Isse Gemini strictly wahi bolega jo likha hai
+        systemInstruction: dynamicSystemContent
       });
 
-      // Gemini ke format ke hisab se roles convert karna (assistant -> model)
       const contents = messages.map(m => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }]
@@ -137,7 +135,7 @@ app.post("/api/chat", async (req, res) => {
       const result = await model.generateContent({ contents });
       const reply = result.response.text();
 
-      console.log("👉 Response delivered by Gemini");
+      console.log(`👉 Response delivered by Gemini for user: ${currentUserName}`);
       return res.json({ reply });
 
     } catch (err) {
@@ -152,14 +150,13 @@ app.post("/api/chat", async (req, res) => {
       });
 
       const reply = response.choices[0]?.message?.content || "";
-      console.log("👉 Response delivered by OpenRouter");
+      console.log(`👉 Response delivered by OpenRouter for user: ${currentUserName}`);
       return res.json({ reply });
 
     } catch (err) {
       console.error("❌ OpenRouter Error:", err);
     }
 
-    // Agar teeno fail ho jayein
     return res.status(500).json({
       error: "Sabhi AI services abhi unavailable hain."
     });
