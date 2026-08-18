@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, getDocs, where, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBQmzNsAaabSHw_s3gbulq45VTn4Ti0mq0",
@@ -15,6 +15,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
+
+// आपका मुख्य एडमिन ईमेल
+const ADMIN_EMAILS = ["tanmaysahu652@gmail.com"];
 
 const googleOAuthUrl = `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
@@ -46,6 +49,9 @@ let currentChatId = null;
 let chatHistoryContext = [];
 let isInitialLoadRunning = true; 
 
+let globalRulesCache = [];
+let userPersonalMemoryCache = [];
+
 loginContainer.classList.add('hidden');
 appContainer.classList.add('hidden');
 
@@ -71,6 +77,24 @@ if (!sessionStorage.getItem('isTabRefreshed')) {
     sessionStorage.setItem('isTabRefreshed', 'true');
 }
 
+// 1. ग्लोबल रूल्स और पर्सनल मेमोरी लोड करना
+async function loadAllMemories() {
+    if (!currentUser) return;
+    try {
+        // ग्लोबल रूल्स (सबके लिए)
+        const gSnap = await getDocs(collection(db, "global_rules"));
+        globalRulesCache = [];
+        gSnap.forEach(d => { if (d.data()?.rule) globalRulesCache.push(d.data().rule); });
+
+        // पर्सनल यूजर मेमोरी (सिर्फ इस यूजर के लिए)
+        const uSnap = await getDocs(collection(db, `users_memory/${currentUser.uid}/memories`));
+        userPersonalMemoryCache = [];
+        uSnap.forEach(d => { if (d.data()?.memory) userPersonalMemoryCache.push(d.data().memory); });
+    } catch (e) {
+        console.error("Memory load error:", e);
+    }
+}
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -86,6 +110,7 @@ onAuthStateChanged(auth, async (user) => {
             defaultUserIcon.style.display = 'inline-block';
         }
         
+        await loadAllMemories();
         await loadAllSidebarTopics(true); 
         
         loginContainer.classList.add('hidden');
@@ -102,7 +127,6 @@ onAuthStateChanged(auth, async (user) => {
 
 googleLoginBtn.addEventListener('click', () => {
     const isWebView = /wv|WebView/i.test(window.navigator.userAgent) || (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
-
     if (isWebView) {
         window.location.href = googleOAuthUrl;
     } else {
@@ -128,10 +152,15 @@ function startNewChatSession() {
     chatHistoryContext = [];
     
     const displayName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
+    const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
     
+    const welcomeText = isAdmin 
+        ? `नमस्ते तन्मय! आप मेरे क्रिएटर (Admin) हैं। मुझसे कुछ भी पूछें या ग्लोबल नियम सिखाने के लिए "याद रखो: [नियम]" लिखें।`
+        : `New chat started! Hello ${displayName}, how can I help you today?`;
+
     messagesContainer.innerHTML = `
         <div class="message ai-message">
-            <div class="message-text">New chat started! Hello ${displayName}, how can I help you today?</div>
+            <div class="message-text">${welcomeText}</div>
             <button class="msg-speak-btn" onclick="speakIndividualMessage(this)" title="Listen / Stop"><i class="fa-solid fa-volume-high"></i></button>
         </div>`;
         
@@ -149,8 +178,8 @@ function startNewChatSession() {
                 firstBtn.classList.add('speaking-now');
                 currentSpeakingButton = firstBtn;
                 
-                const utterance = new SpeechSynthesisUtterance(`New chat started! Hello ${displayName}, how can I help you today?`);
-                utterance.lang = 'en-US';
+                const utterance = new SpeechSynthesisUtterance(welcomeText);
+                utterance.lang = isAdmin ? 'hi-IN' : 'en-US';
                 utterance.onend = () => { resetSpeakingButtons(); };
                 utterance.onerror = () => { resetSpeakingButtons(); };
                 window.speechSynthesis.speak(utterance);
@@ -190,11 +219,7 @@ window.speakIndividualMessage = function(buttonElement) {
     currentSpeakingButton = buttonElement;
     
     const utterance = new SpeechSynthesisUtterance(messageText);
-    if (messageText.includes("New chat started!")) {
-        utterance.lang = 'en-US';
-    } else {
-        utterance.lang = 'hi-IN';
-    }
+    utterance.lang = messageText.includes("New chat started!") ? 'en-US' : 'hi-IN';
     
     utterance.onend = () => { resetSpeakingButtons(); };
     utterance.onerror = () => { resetSpeakingButtons(); };
@@ -250,23 +275,63 @@ async function sendMessage() {
     userInput.value = '';
     chatHistoryContext.push({ role: "user", content: text });
 
+    const userEmail = currentUser ? (currentUser.email || "No Email") : "No Email";
+    const userName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
+    const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
+
+    // 🌟 SMART MEMORY HANDLER (Zero API Cost)
+    const teachPrefixMatch = text.match(/^(याद रखो:|याद रखो|rule:|rule|suno:|सुनो:|मेरा नाम|remember:)\s*(.*)/i);
+    if (teachPrefixMatch && teachPrefixMatch[2]) {
+        const learnedContent = teachPrefixMatch[2].trim();
+        
+        if (isAdmin) {
+            // एडमिन = ग्लोबल मेमोरी (पूरी दुनिया के लिए)
+            await addDoc(collection(db, "global_rules"), {
+                rule: learnedContent,
+                addedBy: userEmail,
+                timestamp: Date.now()
+            });
+            globalRulesCache.push(learnedContent);
+            const confirmationMsg = `✅ समझ गया बॉस! यह नया ग्लोबल नियम पूरे सिस्टम में सेव कर लिया गया है: "${learnedContent}"`;
+            chatHistoryContext.push({ role: "assistant", content: confirmationMsg });
+            appendAIMessage(confirmationMsg, true);
+            await saveMessageToFirebase(currentChatId, text, confirmationMsg);
+            return;
+        } else {
+            // साधारण यूजर = पर्सनल मेमोरी (सिर्फ उस यूजर के डिवाइस/अकाउंट के लिए)
+            await addDoc(collection(db, `users_memory/${currentUser.uid}/memories`), {
+                memory: learnedContent,
+                timestamp: Date.now()
+            });
+            userPersonalMemoryCache.push(learnedContent);
+            const confirmationMsg = `✅ ठीक है! मैंने आपकी यह जानकारी अपनी पर्सनल मेमोरी में सेव कर ली है: "${learnedContent}"`;
+            chatHistoryContext.push({ role: "assistant", content: confirmationMsg });
+            appendAIMessage(confirmationMsg, true);
+            await saveMessageToFirebase(currentChatId, text, confirmationMsg);
+            return;
+        }
+    }
+
+    // 🌟 SLIDING WINDOW CONTEXT: टोकन बचाने के लिए केवल पिछले 6 मैसेज ही सर्वर को भेजे जाएंगे
+    const trimmedContext = chatHistoryContext.slice(-6);
+
     const loadingDiv = document.createElement('div');
     loadingDiv.classList.add('message', 'ai-message');
     loadingDiv.innerText = "Tanmay AI soch raha hai...";
     messagesContainer.appendChild(loadingDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-    const userName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
-    const userEmail = currentUser ? (currentUser.email || "No Email") : "No Email";
-
     try {
         const response = await fetch('https://tanmayai-11j5.onrender.com/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                messages: chatHistoryContext,
+                messages: trimmedContext,
                 userName: userName,
-                userEmail: userEmail
+                userEmail: userEmail,
+                isAdmin: isAdmin,
+                globalRules: globalRulesCache,
+                personalMemory: userPersonalMemoryCache
             })
         });
 

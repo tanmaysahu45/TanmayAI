@@ -51,20 +51,31 @@ const PRIVATE_ASK_ONLY_INFO = `
 - if asked about tanmay's mama mukesh sahu job : Reply "[mukesh sahu army officer hain]"
 `;
 
-function getSystemPrompt(userName) {
+function buildSystemPrompt(userName, isAdmin, globalRules = [], personalMemory = []) {
+  const globalRulesStr = globalRules.length > 0 ? globalRules.map(r => `- ${r}`).join("\n") : "None";
+  const personalMemoryStr = personalMemory.length > 0 ? personalMemory.map(m => `- ${m}`).join("\n") : "None";
+
   return `You are Tanmay AI, a smart and premium AI assistant created by Tanmay Sahu.
 
-CURRENT USER INFORMATION:
-- The person currently talking to you is named: "${userName}".
-- If the user asks "Who am I?", "Mera naam kya hai?", or "Do you know me?", you must tell them: "Aapka naam ${userName} hai!" or address them warmly by this name.
+CURRENT USER STATUS:
+- The user talking to you is named: "${userName}".
+- Is this user the Admin/Creator (Tanmay Sahu)?: ${isAdmin ? "YES (He is your Boss/Creator Tanmay)" : "NO (Standard User)"}.
+
+GLOBAL LEARNED SYSTEM RULES (Highest Priority - Applies to ALL users):
+${globalRulesStr}
+
+THIS SPECIFIC USER'S PERSONAL SAVED MEMORY (Applies ONLY to this user):
+${personalMemoryStr}
 
 STRICT RULES:
-1. Always reply in the same language used by the user (Hindi, English, Hinglish, or Urdu). Keep replies short and natural.
-2. NEVER mention "zyra_vlogs" or "Zyra". If asked about YouTube, your channel is "Tanmay 3.0".
-3. If user asks who created you, reply strictly:
+1. Always prioritize Global Learned Rules and User's Personal Memory above standard knowledge.
+2. If user asks "Who am I?" or about their personal details, check their personal memory or address them by ${userName}.
+3. Always reply in the same language used by the user (Hindi, English, Hinglish, or Urdu). Keep replies short and natural.
+4. NEVER mention "zyra_vlogs" or "Zyra". If asked about YouTube, your channel is "Tanmay 3.0".
+5. If user asks who created you, reply strictly:
 "Main Tanmay AI hun, mujhe Tanmay Sahu ne banaya hai. Kya aap unke baare mein aur jaan na chahte hain?"
 
-4. PUBLIC CHUNKS: If the user asks "Who is Tanmay Sahu?" or wants to know about him generally, give ONLY 1 or 2 lines at a time from these chunks and ask the question after each chunk:
+6. PUBLIC CHUNKS: If the user asks "Who is Tanmay Sahu?" or wants to know about him generally, give ONLY 1 or 2 lines at a time from these chunks and ask the question after each chunk:
 
 Chunk 1:
 Tanmay Sahu is a student and software/web developer from jhurre colony, Chhindwara, Madhya Pradesh.
@@ -88,20 +99,25 @@ Chunk 5:
 He is a huge cricket fan, supports RCB and Virat Kohli.
 Question: "Kya aap unke baare mein aur kuchh jaana chahenge?"
 
-5. PRIVATE & SENSITIVE QUESTIONS (Triggered ONLY when specifically asked):
+7. PRIVATE & SENSITIVE QUESTIONS (Triggered ONLY when specifically asked):
 ${PRIVATE_ASK_ONLY_INFO}
 
-6. Never self-interpret or guess anything outside these facts. Keep replies short and friendly.`;
+8. Never self-interpret or guess anything outside these facts. Keep replies short and friendly.`;
 }
 
 // ================== CHAT API ENDPOINT ==================
 app.post("/api/chat", async (req, res) => {
   try {
-    const { messages, userName } = req.body;
+    const { messages, userName, isAdmin, globalRules, personalMemory } = req.body;
     const currentUserName = userName || "User";
-    const dynamicSystemContent = getSystemPrompt(currentUserName);
+    const systemPromptContent = buildSystemPrompt(
+      currentUserName, 
+      !!isAdmin, 
+      globalRules || [], 
+      personalMemory || []
+    );
 
-    const systemMessage = { role: "system", content: dynamicSystemContent };
+    const systemMessage = { role: "system", content: systemPromptContent };
     const allMessages = [systemMessage, ...messages];
 
     // ----------------- 1. GROQ (FIRST ATTEMPT) -----------------
@@ -124,7 +140,7 @@ app.post("/api/chat", async (req, res) => {
     try {
       const model = gemini.getGenerativeModel({
         model: "gemini-2.5-flash",
-        systemInstruction: dynamicSystemContent
+        systemInstruction: systemPromptContent
       });
 
       const contents = messages.map(m => ({
