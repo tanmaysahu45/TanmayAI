@@ -16,7 +16,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// आपका मुख्य एडमिन ईमेल
+// आपकी एडमिन ईमेल ID
 const ADMIN_EMAILS = ["tanmaysahu652@gmail.com"];
 
 const googleOAuthUrl = `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
@@ -81,12 +81,10 @@ if (!sessionStorage.getItem('isTabRefreshed')) {
 async function loadAllMemories() {
     if (!currentUser) return;
     try {
-        // ग्लोबल रूल्स (सबके लिए)
         const gSnap = await getDocs(collection(db, "global_rules"));
         globalRulesCache = [];
         gSnap.forEach(d => { if (d.data()?.rule) globalRulesCache.push(d.data().rule); });
 
-        // पर्सनल यूजर मेमोरी (सिर्फ इस यूजर के लिए)
         const uSnap = await getDocs(collection(db, `users_memory/${currentUser.uid}/memories`));
         userPersonalMemoryCache = [];
         uSnap.forEach(d => { if (d.data()?.memory) userPersonalMemoryCache.push(d.data().memory); });
@@ -279,26 +277,24 @@ async function sendMessage() {
     const userName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
     const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
 
-    // 🌟 SMART MEMORY HANDLER (Zero API Cost)
+    // 🌟 SMART MEMORY HANDLER (Zero AI Token Cost)
     const teachPrefixMatch = text.match(/^(याद रखो:|याद रखो|rule:|rule|suno:|सुनो:|मेरा नाम|remember:)\s*(.*)/i);
     if (teachPrefixMatch && teachPrefixMatch[2]) {
         const learnedContent = teachPrefixMatch[2].trim();
         
         if (isAdmin) {
-            // एडमिन = ग्लोबल मेमोरी (पूरी दुनिया के लिए)
             await addDoc(collection(db, "global_rules"), {
                 rule: learnedContent,
                 addedBy: userEmail,
                 timestamp: Date.now()
             });
             globalRulesCache.push(learnedContent);
-            const confirmationMsg = `✅ समझ गया बॉस! यह नया ग्लोबल नियम पूरे सिस्टम में सेव कर लिया गया है: "${learnedContent}"`;
+            const confirmationMsg = `✅ समझ गया तन्मय! यह नया ग्लोबल नियम पूरे सिस्टम में सेव कर लिया गया है: "${learnedContent}"`;
             chatHistoryContext.push({ role: "assistant", content: confirmationMsg });
             appendAIMessage(confirmationMsg, true);
             await saveMessageToFirebase(currentChatId, text, confirmationMsg);
             return;
         } else {
-            // साधारण यूजर = पर्सनल मेमोरी (सिर्फ उस यूजर के डिवाइस/अकाउंट के लिए)
             await addDoc(collection(db, `users_memory/${currentUser.uid}/memories`), {
                 memory: learnedContent,
                 timestamp: Date.now()
@@ -312,7 +308,7 @@ async function sendMessage() {
         }
     }
 
-    // 🌟 SLIDING WINDOW CONTEXT: टोकन बचाने के लिए केवल पिछले 6 मैसेज ही सर्वर को भेजे जाएंगे
+    // 🌟 SLIDING WINDOW CONTEXT (पिछले 6 मैसेज ही सर्वर को भेजे जाएंगे)
     const trimmedContext = chatHistoryContext.slice(-6);
 
     const loadingDiv = document.createElement('div');
