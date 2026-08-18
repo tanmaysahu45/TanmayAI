@@ -3,12 +3,20 @@ import cors from "cors";
 import "dotenv/config";
 import { Groq } from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const openrouter = new OpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1"
+});
 
 const BASE_PRIVATE_FACTS = `
 - Tanmay's Mother's name: "[Mamta sahu]"
@@ -74,16 +82,12 @@ app.post("/api/chat", async (req, res) => {
     );
 
     const safeMessages = Array.isArray(messages) && messages.length > 0 ? messages : [{ role: "user", content: "Hi" }];
-    const allMessagesForGroq = [{ role: "system", content: systemPromptContent }, ...safeMessages];
+    const allMessages = [{ role: "system", content: systemPromptContent }, ...safeMessages];
 
-    // ==========================================
-    // 1. MAIN API (GROQ - 100% Stable Free Model)
-    // ==========================================
     try {
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
       const response = await groq.chat.completions.create({
-        model: "llama3-8b-8192", // Changed to absolute stable model
-        messages: allMessagesForGroq,
+        model: "llama-3.1-70b-versatile",
+        messages: allMessages,
         temperature: 0.5
       });
 
@@ -91,65 +95,48 @@ app.post("/api/chat", async (req, res) => {
       if (reply) return res.json({ reply });
 
     } catch (groqError) {
-      console.error("GROQ API ERROR:", groqError.message);
+      console.log("GROQ API ERROR:", groqError.message);
       
-      // ==========================================
-      // 2. FALLBACK API (GEMINI - Most Stable Version)
-      // ==========================================
       try {
-        const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        // Changed to gemini-pro which is universally supported
-        const model = gemini.getGenerativeModel({ model: "gemini-pro" });
+        const model = gemini.getGenerativeModel({
+          model: "gemini-1.5-flash",
+          systemInstruction: systemPromptContent
+        });
 
-        // Gemini-pro sometimes fails with direct systemInstructions, so we combine it safely
-        const combinedMessages = [
-          {
-            role: "user",
-            parts: [{ text: `SYSTEM PROMPT: ${systemPromptContent}\n\nUSER MESSAGE: ${safeMessages[safeMessages.length - 1].content}` }]
-          }
-        ];
+        const contents = safeMessages.map(m => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }]
+        }));
 
-        const result = await model.generateContent({ contents: combinedMessages });
+        const result = await model.generateContent({ contents });
         const reply = result.response.text();
         
         if (reply) return res.json({ reply });
 
       } catch (geminiError) {
-        console.error("GEMINI API ERROR:", geminiError.message);
+        console.log("GEMINI API ERROR:", geminiError.message);
         
-        // ==========================================
-        // 3. OPENROUTER (Guaranteed Free Model)
-        // ==========================================
         try {
-            const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                  model: "mistralai/mistral-7b-instruct:free", // Changed to a model that is permanently free
-                  messages: allMessagesForGroq
-                })
+            const response = await openrouter.chat.completions.create({
+              model: "meta-llama/llama-3.1-8b-instruct:free",
+              messages: allMessages
             });
-            
-            const data = await openRouterRes.json();
-            const reply = data.choices?.[0]?.message?.content;
+            const reply = response.choices[0]?.message?.content;
             if (reply) return res.json({ reply });
 
         } catch (openRouterError) {
-            console.error("OPENROUTER API ERROR:", openRouterError.message);
-            return res.json({ reply: "Bhai, sabhi AI companies (Groq, Gemini, OpenRouter) fail ho gayi hain. Render Logs me error check karo." });
+            console.log("OPENROUTER API ERROR:", openRouterError.message);
+            return res.json({ reply: "Bhai, sabhi AI models fail ho gaye hain." });
         }
       }
     }
 
   } catch (error) {
     console.error("SERVER CRASH:", error);
-    return res.json({ reply: "Server error. Code execute nahi hua." });
+    return res.status(500).json({ error: "Server error." });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Tanmay AI Original Structure Server running on port ${PORT}`);
+  console.log(`🚀 Tanmay AI Original Server running on port ${PORT}`);
 });

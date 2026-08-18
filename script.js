@@ -275,7 +275,6 @@ async function sendMessage() {
     const userName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
     const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
 
-    // 🌟 SMART MEMORY HANDLER WITH PUBLISH CONFIRMATION
     const memoryTriggerRegex = /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|sun:|suno:)\s*(.*)/i;
     const match = text.match(memoryTriggerRegex);
 
@@ -317,7 +316,8 @@ async function sendMessage() {
 
     const loadingDiv = document.createElement('div');
     loadingDiv.classList.add('message', 'ai-message');
-    loadingDiv.innerText = "Thinking...";
+    // लोडिंग टेक्स्ट यहाँ सही कर दिया गया है
+    loadingDiv.innerText = "Tanmay AI is thinking...";
     messagesContainer.appendChild(loadingDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
