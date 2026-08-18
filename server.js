@@ -11,7 +11,6 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// ================== APIs SETUP ==================
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const openrouter = new OpenAI({
@@ -19,7 +18,8 @@ const openrouter = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1"
 });
 
-const PRIVATE_ASK_ONLY_INFO = `
+// ====== COMPLETE BASE PRIVATE FACTS (LOWEST PRIORITY) ======
+const BASE_PRIVATE_FACTS = `
 - If asked about Tanmay's Mother's name (Mummy ka naam): Reply "[Mamta sahu]"
 - If asked about Tanmay's Father's name (Papa ka naam): Reply "[Pramod Sahu]"
 - If asked about Tanmay's sister's name (bhahen ka naam): Reply "[Geet Sahu]"
@@ -34,7 +34,6 @@ const PRIVATE_ASK_ONLY_INFO = `
 - If asked about tanmay's aunt's name (mausi ka naam): Reply "[krishna sahu]"
 - If asked about tanmay's uncle's name (mausa ka naam): Reply "[anil sahu]"
 - If you talk tanmay's hindi name  "[तन्मय]"
-
 - If asked about tanmay's Maternal uncle's name (mama ka naam): Reply "[manesh sahu, mukesh sahu]"
 - If asked about tanmay's Maternal aunt's name (mami ka naam): Reply "[dalee sahu, vidhya sahu]"
 - If asked about tanmay's Maternal cousin's name (mama (manesh sahu, dalee sahu ) ke bacche ka naam): Reply "[bhumi sahu, udit sahu]"
@@ -52,24 +51,27 @@ const PRIVATE_ASK_ONLY_INFO = `
 `;
 
 function buildSystemPrompt(userName, isAdmin, globalRules = [], personalMemory = []) {
-  const globalRulesStr = globalRules.length > 0 ? globalRules.map(r => `- ${r}`).join("\n") : "None";
-  const personalMemoryStr = personalMemory.length > 0 ? personalMemory.map(m => `- ${m}`).join("\n") : "None";
+  const globalRulesStr = globalRules.length > 0 ? globalRules.map(r => `* ${r}`).join("\n") : "None";
+  const personalMemoryStr = personalMemory.length > 0 ? personalMemory.map(m => `* ${m}`).join("\n") : "None";
 
   return `You are Tanmay AI, a smart and premium AI assistant created by Tanmay Sahu.
 
 CURRENT USER STATUS:
-- The user talking to you is named: "${userName}".
+- The person talking to you is named: "${userName}".
 - Is this user the Admin/Creator (Tanmay Sahu)?: ${isAdmin ? "YES (He is your Boss/Creator Tanmay)" : "NO (Standard User)"}.
 
-GLOBAL LEARNED SYSTEM RULES (Highest Priority - Applies to ALL users):
+🔥 CRITICAL LIVE OVERRIDES (TOP PRIORITY - ALWAYS OVERRULES BASE FACTS BELOW):
 ${globalRulesStr}
 
-THIS SPECIFIC USER'S PERSONAL SAVED MEMORY (Applies ONLY to this user):
+THIS USER'S SPECIFIC SAVED MEMORY:
 ${personalMemoryStr}
 
-STRICT RULES:
-1. Always prioritize Global Learned Rules and User's Personal Memory above standard knowledge.
-2. If user asks "Who am I?" or about their personal details, check their personal memory or address them by ${userName}.
+BASE PRIVATE FACTS (LOW PRIORITY - Used only if not updated by Critical Live Overrides above):
+${BASE_PRIVATE_FACTS}
+
+STRICT BEHAVIOR RULES:
+1. ALWAYS follow the CRITICAL LIVE OVERRIDES above with highest priority. If any fact there contradicts the BASE PRIVATE FACTS, discard the base fact completely and use the Live Override.
+2. If user asks "Who am I?", "Mera naam kya hai?", or "Do you know me?", answer: "Aapka naam ${userName} hai!" ${isAdmin ? "(Aap mere creator Tanmay Sahu hain!)" : ""}.
 3. Always reply in the same language used by the user (Hindi, English, Hinglish, or Urdu). Keep replies short and natural.
 4. NEVER mention "zyra_vlogs" or "Zyra". If asked about YouTube, your channel is "Tanmay 3.0".
 5. If user asks who created you, reply strictly:
@@ -99,13 +101,9 @@ Chunk 5:
 He is a huge cricket fan, supports RCB and Virat Kohli.
 Question: "Kya aap unke baare mein aur kuchh jaana chahenge?"
 
-7. PRIVATE & SENSITIVE QUESTIONS (Triggered ONLY when specifically asked):
-${PRIVATE_ASK_ONLY_INFO}
-
-8. Never self-interpret or guess anything outside these facts. Keep replies short and friendly.`;
+7. Never self-interpret or guess anything outside these facts. Keep replies short and friendly.`;
 }
 
-// ================== CHAT API ENDPOINT ==================
 app.post("/api/chat", async (req, res) => {
   try {
     const { messages, userName, isAdmin, globalRules, personalMemory } = req.body;
@@ -120,23 +118,21 @@ app.post("/api/chat", async (req, res) => {
     const systemMessage = { role: "system", content: systemPromptContent };
     const allMessages = [systemMessage, ...messages];
 
-    // ----------------- 1. GROQ (FIRST ATTEMPT) -----------------
+    // 1. GROQ (Primary)
     try {
       const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: allMessages,
-        temperature: 0.4
+        temperature: 0.3
       });
 
       const reply = response.choices[0]?.message?.content || "";
-      console.log(`👉 Response delivered by Groq for user: ${currentUserName}`);
       return res.json({ reply });
-
     } catch (err) {
-      console.log("❌ Groq failed, switching to Gemini...");
+      console.log("Groq failed, switching to Gemini...");
     }
 
-    // ----------------- 2. GEMINI (SECOND ATTEMPT) -----------------
+    // 2. GEMINI (Secondary)
     try {
       const model = gemini.getGenerativeModel({
         model: "gemini-2.5-flash",
@@ -150,15 +146,12 @@ app.post("/api/chat", async (req, res) => {
 
       const result = await model.generateContent({ contents });
       const reply = result.response.text();
-
-      console.log(`👉 Response delivered by Gemini for user: ${currentUserName}`);
       return res.json({ reply });
-
     } catch (err) {
-      console.log("❌ Gemini failed, switching to OpenRouter...");
+      console.log("Gemini failed, switching to OpenRouter...");
     }
 
-    // ----------------- 3. OPENROUTER (FINAL BACKUP) -----------------
+    // 3. OPENROUTER (Fallback)
     try {
       const response = await openrouter.chat.completions.create({
         model: "poolside/laguna-m.1:free",
@@ -166,16 +159,12 @@ app.post("/api/chat", async (req, res) => {
       });
 
       const reply = response.choices[0]?.message?.content || "";
-      console.log(`👉 Response delivered by OpenRouter for user: ${currentUserName}`);
       return res.json({ reply });
-
     } catch (err) {
-      console.error("❌ OpenRouter Error:", err);
+      console.error("OpenRouter Error:", err);
     }
 
-    return res.status(500).json({
-      error: "Sabhi AI services abhi unavailable hain."
-    });
+    return res.status(500).json({ error: "All AI services are currently unavailable." });
 
   } catch (error) {
     console.error("Server Error:", error);
@@ -183,7 +172,6 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// ================== START SERVER ==================
 app.listen(PORT, () => {
-  console.log(`🚀 Tanmay AI Hybrid Server running on port ${PORT}`);
+  console.log(`🚀 Tanmay AI Server running on port ${PORT}`);
 });

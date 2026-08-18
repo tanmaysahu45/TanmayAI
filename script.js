@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, getDocs, where, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBQmzNsAaabSHw_s3gbulq45VTn4Ti0mq0",
@@ -16,7 +16,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// आपकी एडमिन ईमेल ID
 const ADMIN_EMAILS = ["tanmaysahu652@gmail.com"];
 
 const googleOAuthUrl = `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
@@ -59,7 +58,7 @@ const globalLoader = document.createElement('div');
 globalLoader.classList.add('custom-loader-wrapper');
 globalLoader.innerHTML = `
     <div class="chakri"></div>
-    <div class="loader-text">Tanmay AI loading...</div>
+    <div class="loader-text">Tanmay AI is loading...</div>
 `;
 document.body.appendChild(globalLoader);
 
@@ -77,7 +76,6 @@ if (!sessionStorage.getItem('isTabRefreshed')) {
     sessionStorage.setItem('isTabRefreshed', 'true');
 }
 
-// 1. ग्लोबल रूल्स और पर्सनल मेमोरी लोड करना
 async function loadAllMemories() {
     if (!currentUser) return;
     try {
@@ -153,8 +151,8 @@ function startNewChatSession() {
     const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
     
     const welcomeText = isAdmin 
-        ? `नमस्ते तन्मय! आप मेरे क्रिएटर (Admin) हैं। मुझसे कुछ भी पूछें या ग्लोबल नियम सिखाने के लिए "याद रखो: [नियम]" लिखें।`
-        : `New chat started! Hello ${displayName}, how can I help you today?`;
+        ? `Hello Tanmay! You are logged in as Admin. Ask me anything or say "Remember: [info]" to update my global knowledge.`
+        : `New chat session started! Hello ${displayName}, how can I help you today?`;
 
     messagesContainer.innerHTML = `
         <div class="message ai-message">
@@ -177,7 +175,7 @@ function startNewChatSession() {
                 currentSpeakingButton = firstBtn;
                 
                 const utterance = new SpeechSynthesisUtterance(welcomeText);
-                utterance.lang = isAdmin ? 'hi-IN' : 'en-US';
+                utterance.lang = 'en-US';
                 utterance.onend = () => { resetSpeakingButtons(); };
                 utterance.onerror = () => { resetSpeakingButtons(); };
                 window.speechSynthesis.speak(utterance);
@@ -192,8 +190,8 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.continuous = false;
-    recognition.lang = 'hi-IN';
-    recognition.onstart = () => { micBtn.classList.add('listening'); userInput.placeholder = "Sunaai de raha hai, boliye..."; };
+    recognition.lang = 'en-US';
+    recognition.onstart = () => { micBtn.classList.add('listening'); userInput.placeholder = "Listening..."; };
     recognition.onend = () => { micBtn.classList.remove('listening'); userInput.placeholder = "Ask Tanmay AI..."; };
     recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; sendMessage(); };
 }
@@ -217,7 +215,7 @@ window.speakIndividualMessage = function(buttonElement) {
     currentSpeakingButton = buttonElement;
     
     const utterance = new SpeechSynthesisUtterance(messageText);
-    utterance.lang = messageText.includes("New chat started!") ? 'en-US' : 'hi-IN';
+    utterance.lang = 'en-US';
     
     utterance.onend = () => { resetSpeakingButtons(); };
     utterance.onerror = () => { resetSpeakingButtons(); };
@@ -277,19 +275,26 @@ async function sendMessage() {
     const userName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
     const isAdmin = currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
 
-    // 🌟 SMART MEMORY HANDLER (Zero AI Token Cost)
-    const teachPrefixMatch = text.match(/^(याद रखो:|याद रखो|rule:|rule|suno:|सुनो:|मेरा नाम|remember:)\s*(.*)/i);
-    if (teachPrefixMatch && teachPrefixMatch[2]) {
-        const learnedContent = teachPrefixMatch[2].trim();
-        
+    // 🌟 SMART MEMORY HANDLER WITH PUBLISH CONFIRMATION
+    const memoryTriggerRegex = /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|sun:|suno:)\s*(.*)/i;
+    const match = text.match(memoryTriggerRegex);
+
+    if (match && match[2]) {
+        const learnedContent = match[2].trim();
+        let isGlobalPublish = false;
+
         if (isAdmin) {
+            isGlobalPublish = confirm(`Do you want to publish this rule GLOBALLY to ALL users across all devices?\n\n"${learnedContent}"\n\n[OK = Publish to Everyone] [Cancel = Save Only in My Personal Memory]`);
+        }
+
+        if (isAdmin && isGlobalPublish) {
             await addDoc(collection(db, "global_rules"), {
                 rule: learnedContent,
                 addedBy: userEmail,
                 timestamp: Date.now()
             });
             globalRulesCache.push(learnedContent);
-            const confirmationMsg = `✅ समझ गया तन्मय! यह नया ग्लोबल नियम पूरे सिस्टम में सेव कर लिया गया है: "${learnedContent}"`;
+            const confirmationMsg = `✅ Published Globally! I have updated my global memory for ALL users: "${learnedContent}"`;
             chatHistoryContext.push({ role: "assistant", content: confirmationMsg });
             appendAIMessage(confirmationMsg, true);
             await saveMessageToFirebase(currentChatId, text, confirmationMsg);
@@ -300,7 +305,7 @@ async function sendMessage() {
                 timestamp: Date.now()
             });
             userPersonalMemoryCache.push(learnedContent);
-            const confirmationMsg = `✅ ठीक है! मैंने आपकी यह जानकारी अपनी पर्सनल मेमोरी में सेव कर ली है: "${learnedContent}"`;
+            const confirmationMsg = `✅ Saved Privately! I have saved this strictly in your personal memory profile: "${learnedContent}"`;
             chatHistoryContext.push({ role: "assistant", content: confirmationMsg });
             appendAIMessage(confirmationMsg, true);
             await saveMessageToFirebase(currentChatId, text, confirmationMsg);
@@ -308,12 +313,11 @@ async function sendMessage() {
         }
     }
 
-    // 🌟 SLIDING WINDOW CONTEXT (पिछले 6 मैसेज ही सर्वर को भेजे जाएंगे)
     const trimmedContext = chatHistoryContext.slice(-6);
 
     const loadingDiv = document.createElement('div');
     loadingDiv.classList.add('message', 'ai-message');
-    loadingDiv.innerText = "Tanmay AI soch raha hai...";
+    loadingDiv.innerText = "Thinking...";
     messagesContainer.appendChild(loadingDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
@@ -340,11 +344,11 @@ async function sendMessage() {
             appendAIMessage(aiResponse, true);
             await saveMessageToFirebase(currentChatId, text, aiResponse);
         } else {
-            appendAIMessage("Server se koi valid response nahi aaya bhai.", true);
+            appendAIMessage("Received an invalid response from server.", true);
         }
     } catch (error) {
         if (loadingDiv && messagesContainer.contains(loadingDiv)) messagesContainer.removeChild(loadingDiv);
-        appendAIMessage("Backend Server se connect nahi ho paya.", true);
+        appendAIMessage("Unable to connect to backend server.", true);
     }
 }
 
@@ -432,7 +436,7 @@ function addTopicToSidebarUI(firstQuestion, chatId) {
     deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
     deleteBtn.onclick = async (e) => {
         e.stopPropagation();
-        if (confirm("Kya aap is chat section ko delete karna chahte hain?")) {
+        if (confirm("Do you want to delete this chat?")) {
             const q = query(collection(db, "chat_messages"), where("chatId", "==", chatId));
             const snap = await getDocs(q);
             for (const docSnap of snap.docs) { await deleteDoc(doc(db, "chat_messages", docSnap.id)); }
@@ -481,7 +485,7 @@ async function loadFullChatSession(chatId) {
 
 clearHistoryBtn.addEventListener('click', async () => {
     if (!currentUser) return;
-    if (confirm("Kya aap sach me saari chat history hatana chahte hain?")) {
+    if (confirm("Are you sure you want to clear all chat history?")) {
         const q = query(collection(db, "chat_messages"));
         const snap = await getDocs(q);
         for (const d of snap.docs) { 
