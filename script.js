@@ -74,7 +74,7 @@ if (!sessionStorage.getItem('isTabRefreshed')) {
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
-        const displayName = user.displayName || user.email?.split('@')[0] || "User";
+        const displayName = user.displayName || (user.email ? user.email.split('@')[0] : "User");
         usernameDisplay.innerText = displayName;
         
         if (user.photoURL) {
@@ -127,9 +127,11 @@ function startNewChatSession() {
     localStorage.setItem('activeChatId', currentChatId); 
     chatHistoryContext = [];
     
+    const displayName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
+    
     messagesContainer.innerHTML = `
         <div class="message ai-message">
-            <div class="message-text">New chat started! Ask me anything, how can I help you?</div>
+            <div class="message-text">New chat started! Hello ${displayName}, how can I help you today?</div>
             <button class="msg-speak-btn" onclick="speakIndividualMessage(this)" title="Listen / Stop"><i class="fa-solid fa-volume-high"></i></button>
         </div>`;
         
@@ -147,7 +149,7 @@ function startNewChatSession() {
                 firstBtn.classList.add('speaking-now');
                 currentSpeakingButton = firstBtn;
                 
-                const utterance = new SpeechSynthesisUtterance("New chat started! Ask me anything, how can I help you?");
+                const utterance = new SpeechSynthesisUtterance(`New chat started! Hello ${displayName}, how can I help you today?`);
                 utterance.lang = 'en-US';
                 utterance.onend = () => { resetSpeakingButtons(); };
                 utterance.onerror = () => { resetSpeakingButtons(); };
@@ -188,7 +190,6 @@ window.speakIndividualMessage = function(buttonElement) {
     currentSpeakingButton = buttonElement;
     
     const utterance = new SpeechSynthesisUtterance(messageText);
-    
     if (messageText.includes("New chat started!")) {
         utterance.lang = 'en-US';
     } else {
@@ -255,11 +256,18 @@ async function sendMessage() {
     messagesContainer.appendChild(loadingDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
+    const userName = currentUser ? (currentUser.displayName || currentUser.email?.split('@')[0] || "User") : "User";
+    const userEmail = currentUser ? (currentUser.email || "No Email") : "No Email";
+
     try {
         const response = await fetch('https://tanmayai-11j5.onrender.com/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: chatHistoryContext })
+            body: JSON.stringify({ 
+                messages: chatHistoryContext,
+                userName: userName,
+                userEmail: userEmail
+            })
         });
 
         const data = await response.json();
