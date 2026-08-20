@@ -11,10 +11,6 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
-// ===============================
-// AI CLIENTS
-// ===============================
-
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
@@ -28,17 +24,25 @@ const openrouter = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1"
 });
 
-// ===============================
-// AI MODELS
-// ===============================
+// =====================================================
+// CURRENT MODELS
+// =====================================================
 
-const GROQ_MODEL = "llama-3.3-70b-versatile";
-const GEMINI_MODEL = "gemini-3.7-flash";
+const GROQ_MODEL = "openai/gpt-oss-120b";
+const GEMINI_MODEL = "gemini-2.5-flash";
 const OPENROUTER_MODEL = "openrouter/free";
 
-// ===============================
+// =====================================================
+// ADMIN
+// =====================================================
+
+const ADMIN_EMAILS = [
+  "tanmaysahu652@gmail.com"
+];
+
+// =====================================================
 // PRIVATE FAMILY FACTS
-// ===============================
+// =====================================================
 
 const BASE_PRIVATE_FACTS = `
 - Tanmay's Mother's name: "[Mamta sahu]"
@@ -64,9 +68,9 @@ const BASE_PRIVATE_FACTS = `
 - Mama Mukesh job: "[Army Officer]"
 `;
 
-// ===============================
+// =====================================================
 // SYSTEM PROMPT
-// ===============================
+// =====================================================
 
 function buildSystemPrompt(
   userName,
@@ -74,6 +78,7 @@ function buildSystemPrompt(
   globalRules = [],
   personalMemory = []
 ) {
+
   const globalRulesStr =
     globalRules.length > 0
       ? globalRules.map(r => `* ${r}`).join("\n")
@@ -90,10 +95,10 @@ USER INFO:
 - Current User: "${userName}"
 - Is Admin?: ${isAdmin ? "YES" : "NO"}
 
-🔥 CRITICAL LEARNED RULES (TOP PRIORITY):
+🔥 CRITICAL LEARNED GLOBAL RULES:
 ${globalRulesStr}
 
-USER SPECIFIC MEMORY:
+USER SPECIFIC PERSONAL MEMORY:
 ${personalMemoryStr}
 
 TANMAY'S FAMILY FACTS:
@@ -102,47 +107,42 @@ ${BASE_PRIVATE_FACTS}
 CORE INSTRUCTIONS:
 
 1. GENERAL CONVERSATION:
-If the user says "Hi", "Hello", asks how you are, or asks general knowledge questions, RESPOND NORMALLY.
+If the user says Hi, Hello, asks how you are, or asks general questions, respond normally.
 
 2. PERSONAL IDENTITY:
-Answer using the Current User name when appropriate.
+Use the Current User name when appropriate.
 
-3. UNKNOWN PRIVATE INFO:
-ONLY if the user asks a very specific private family question about Tanmay that is NOT in the facts or rules above, reply politely:
+3. GLOBAL RULES:
+Always follow the Critical Learned Global Rules.
+
+4. PERSONAL MEMORY:
+Use personal memory only when relevant to the current user.
+
+5. UNKNOWN PRIVATE INFO:
+If a very specific private family question is asked and the information is not available in the facts, global rules, or personal memory, say:
 "Mujhe is baare mein abhi jankari nahi hai."
 
-4. LEARNED RULE PRIORITY:
-Always prioritize Critical Learned Rules over the base facts.
-
-5. MEMORY:
-Use personal memory only for the current user.
-Use global rules when applicable.
-
 6. LANGUAGE:
-Reply in the same language the user writes:
-- Hindi
-- English
-- Hinglish
+Reply in the same language the user uses:
+Hindi, English, or Hinglish.
 
-7. NATURAL RESPONSE:
-Do not unnecessarily mention that you are following a system prompt, memory, model, API, or backend.
+7. NATURAL ANSWERS:
+Do not talk about system prompts, APIs, backend, fallback models, or internal instructions.
 
-8. DO NOT MAKE UP PERSONAL FACTS:
-If private information is not available, do not invent it.
+8. DO NOT INVENT:
+Never make up personal facts.
 
 9. BE HELPFUL:
 Give clear, useful and natural answers.
-
-10. IDENTITY:
-You are Tanmay AI.
 `;
 }
 
-// ===============================
-// HELPERS
-// ===============================
+// =====================================================
+// CLEAN MESSAGES
+// =====================================================
 
 function cleanMessages(messages) {
+
   if (!Array.isArray(messages)) {
     return [];
   }
@@ -160,8 +160,11 @@ function cleanMessages(messages) {
     }));
 }
 
-function getErrorMessage(error) {
-  if (!error) return "Unknown error";
+// =====================================================
+// ERROR HELPER
+// =====================================================
+
+function errorText(error) {
 
   return (
     error?.error?.message ||
@@ -171,132 +174,172 @@ function getErrorMessage(error) {
   );
 }
 
-// ===============================
+// =====================================================
 // GROQ
-// ===============================
+// =====================================================
 
-async function askGroq(allMessages) {
+async function askGroq(messages) {
+
   if (!process.env.GROQ_API_KEY) {
     throw new Error("GROQ_API_KEY is missing");
   }
 
   console.log("Trying Groq:", GROQ_MODEL);
 
-  const response = await groq.chat.completions.create({
-    model: GROQ_MODEL,
-    messages: allMessages,
-    temperature: 0.5,
-    max_tokens: 4096
-  });
+  const response =
+    await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      messages,
+      temperature: 0.5,
+      max_tokens: 4096
+    });
 
-  const reply = response?.choices?.[0]?.message?.content;
+  const reply =
+    response?.choices?.[0]?.message?.content;
 
   if (!reply || !reply.trim()) {
-    throw new Error("Groq returned an empty response");
+    throw new Error("Groq returned empty response");
   }
 
   return reply.trim();
 }
 
-// ===============================
+// =====================================================
 // GEMINI
-// ===============================
+// =====================================================
 
-async function askGemini(systemPromptContent, safeMessages) {
+async function askGemini(
+  systemPrompt,
+  messages
+) {
+
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is missing");
   }
 
   console.log("Trying Gemini:", GEMINI_MODEL);
 
-  const model = gemini.getGenerativeModel({
-    model: GEMINI_MODEL,
-    systemInstruction: systemPromptContent
-  });
+  const model =
+    gemini.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: systemPrompt
+    });
 
-  const contents = safeMessages.map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [
-      {
-        text: m.content
-      }
-    ]
-  }));
+  const contents =
+    messages.map(m => ({
+      role:
+        m.role === "assistant"
+          ? "model"
+          : "user",
 
-  const result = await model.generateContent({
-    contents,
-    generationConfig: {
-      temperature: 0.5,
-      maxOutputTokens: 4096
-    }
-  });
+      parts: [
+        {
+          text: m.content
+        }
+      ]
+    }));
 
-  const reply = result?.response?.text?.();
+  const result =
+    await model.generateContent({
+      contents
+    });
+
+  const reply =
+    result?.response?.text?.();
 
   if (!reply || !reply.trim()) {
-    throw new Error("Gemini returned an empty response");
+    throw new Error("Gemini returned empty response");
   }
 
   return reply.trim();
 }
 
-// ===============================
+// =====================================================
 // OPENROUTER
-// ===============================
+// =====================================================
 
-async function askOpenRouter(allMessages) {
+async function askOpenRouter(messages) {
+
   if (!process.env.OPENROUTER_API_KEY) {
-    throw new Error("OPENROUTER_API_KEY is missing");
+    throw new Error(
+      "OPENROUTER_API_KEY is missing"
+    );
   }
 
-  console.log("Trying OpenRouter:", OPENROUTER_MODEL);
+  console.log(
+    "Trying OpenRouter:",
+    OPENROUTER_MODEL
+  );
 
-  const response = await openrouter.chat.completions.create({
-    model: OPENROUTER_MODEL,
-    messages: allMessages,
-    temperature: 0.5,
-    max_tokens: 4096
-  });
+  const response =
+    await openrouter.chat.completions.create({
+      model: OPENROUTER_MODEL,
+      messages,
+      temperature: 0.5,
+      max_tokens: 4096
+    });
 
-  const reply = response?.choices?.[0]?.message?.content;
+  const reply =
+    response?.choices?.[0]?.message?.content;
 
   if (!reply || !reply.trim()) {
-    throw new Error("OpenRouter returned an empty response");
+    throw new Error(
+      "OpenRouter returned empty response"
+    );
   }
 
   return reply.trim();
 }
 
-// ===============================
+// =====================================================
 // CHAT API
-// ===============================
+// =====================================================
 
 app.post("/api/chat", async (req, res) => {
+
   const errors = [];
 
   try {
+
     const {
       messages,
       userName,
-      isAdmin,
+      userEmail,
       globalRules,
       personalMemory
     } = req.body || {};
 
-    const currentUserName = userName || "User";
+    const currentUserName =
+      userName || "User";
 
-    const systemPromptContent = buildSystemPrompt(
-      currentUserName,
-      !!isAdmin,
-      Array.isArray(globalRules) ? globalRules : [],
-      Array.isArray(personalMemory) ? personalMemory : []
-    );
+    // -----------------------------------------------
+    // ADMIN IS CALCULATED ON SERVER
+    // -----------------------------------------------
 
-    const cleanedMessages = cleanMessages(messages);
+    const isAdmin =
+      !!userEmail &&
+      ADMIN_EMAILS.includes(
+        String(userEmail).toLowerCase()
+      );
+
+    const systemPrompt =
+      buildSystemPrompt(
+        currentUserName,
+        isAdmin,
+        Array.isArray(globalRules)
+          ? globalRules
+          : [],
+        Array.isArray(personalMemory)
+          ? personalMemory
+          : []
+      );
 
     const safeMessages =
-      cleanedMessages.length > 0
-        ? cleanedMessages
+      cleanMessages(messages);
+
+    const finalMessages =
+      safeMessages.length > 0
+        ? safeMessages
         : [
             {
               role: "user",
@@ -307,124 +350,175 @@ app.post("/api/chat", async (req, res) => {
     const allMessages = [
       {
         role: "system",
-        content: systemPromptContent
+        content: systemPrompt
       },
-      ...safeMessages
+      ...finalMessages
     ];
 
-    // =====================================
+    // =================================================
     // 1. GROQ
-    // =====================================
+    // =================================================
 
     try {
-      const reply = await askGroq(allMessages);
 
-      console.log("✅ Groq response successful");
+      const reply =
+        await askGroq(allMessages);
 
-      return res.status(200).json({
+      console.log(
+        "✅ GROQ SUCCESS"
+      );
+
+      return res.json({
         reply,
+        provider: "Groq",
         model: GROQ_MODEL,
-        provider: "groq"
+        showModel: isAdmin
       });
-    } catch (groqError) {
-      const errorText = getErrorMessage(groqError);
 
-      console.error("❌ GROQ ERROR:", errorText);
+    } catch (error) {
+
+      const message =
+        errorText(error);
+
+      console.error(
+        "❌ GROQ ERROR:",
+        message
+      );
 
       errors.push({
         provider: "Groq",
-        error: errorText
+        model: GROQ_MODEL,
+        error: message
       });
     }
 
-    // =====================================
+    // =================================================
     // 2. GEMINI
-    // =====================================
+    // =================================================
 
     try {
-      const reply = await askGemini(
-        systemPromptContent,
-        safeMessages
+
+      const reply =
+        await askGemini(
+          systemPrompt,
+          finalMessages
+        );
+
+      console.log(
+        "✅ GEMINI SUCCESS"
       );
 
-      console.log("✅ Gemini response successful");
-
-      return res.status(200).json({
+      return res.json({
         reply,
+        provider: "Gemini",
         model: GEMINI_MODEL,
-        provider: "gemini"
+        showModel: isAdmin
       });
-    } catch (geminiError) {
-      const errorText = getErrorMessage(geminiError);
 
-      console.error("❌ GEMINI ERROR:", errorText);
+    } catch (error) {
+
+      const message =
+        errorText(error);
+
+      console.error(
+        "❌ GEMINI ERROR:",
+        message
+      );
 
       errors.push({
         provider: "Gemini",
-        error: errorText
+        model: GEMINI_MODEL,
+        error: message
       });
     }
 
-    // =====================================
+    // =================================================
     // 3. OPENROUTER
-    // =====================================
+    // =================================================
 
     try {
-      const reply = await askOpenRouter(allMessages);
 
-      console.log("✅ OpenRouter response successful");
+      const reply =
+        await askOpenRouter(
+          allMessages
+        );
 
-      return res.status(200).json({
+      console.log(
+        "✅ OPENROUTER SUCCESS"
+      );
+
+      return res.json({
         reply,
+        provider: "OpenRouter",
         model: OPENROUTER_MODEL,
-        provider: "openrouter"
+        showModel: isAdmin
       });
-    } catch (openRouterError) {
-      const errorText = getErrorMessage(openRouterError);
 
-      console.error("❌ OPENROUTER ERROR:", errorText);
+    } catch (error) {
+
+      const message =
+        errorText(error);
+
+      console.error(
+        "❌ OPENROUTER ERROR:",
+        message
+      );
 
       errors.push({
         provider: "OpenRouter",
-        error: errorText
+        model: OPENROUTER_MODEL,
+        error: message
       });
     }
 
-    // =====================================
+    // =================================================
     // ALL FAILED
-    // =====================================
+    // =================================================
 
     console.error(
-      "❌ ALL AI MODELS FAILED:",
-      JSON.stringify(errors, null, 2)
+      "❌ ALL AI MODELS FAILED"
+    );
+
+    console.error(
+      JSON.stringify(
+        errors,
+        null,
+        2
+      )
     );
 
     return res.status(503).json({
       reply:
-        "Bhai, abhi mere AI servers mein problem aa rahi hai. Thodi der baad dobara try karo.",
-      error: "All AI providers failed",
-      details: errors
+        "Bhai, abhi AI servers mein problem aa rahi hai. Thodi der baad dobara try karo.",
+      error:
+        "All AI providers failed"
     });
 
   } catch (error) {
-    console.error("❌ SERVER CRASH:", error);
+
+    console.error(
+      "❌ SERVER CRASH:",
+      error
+    );
 
     return res.status(500).json({
-      reply: "Server mein unexpected error aa gaya.",
-      error: getErrorMessage(error)
+      reply:
+        "Server mein unexpected error aa gaya.",
+      error:
+        errorText(error)
     });
   }
 });
 
-// ===============================
+// =====================================================
 // HEALTH CHECK
-// ===============================
+// =====================================================
 
 app.get("/", (req, res) => {
+
   res.json({
     status: "online",
     name: "Tanmay AI",
-    message: "Tanmay AI backend is running.",
     models: {
       groq: GROQ_MODEL,
       gemini: GEMINI_MODEL,
@@ -433,17 +527,40 @@ app.get("/", (req, res) => {
   });
 });
 
-// ===============================
-// START SERVER
-// ===============================
+// =====================================================
+// START
+// =====================================================
 
 app.listen(PORT, () => {
-  console.log("========================================");
-  console.log("🚀 Tanmay AI Server Started");
-  console.log("========================================");
-  console.log("Port:", PORT);
-  console.log("Groq:", GROQ_MODEL);
-  console.log("Gemini:", GEMINI_MODEL);
-  console.log("OpenRouter:", OPENROUTER_MODEL);
-  console.log("========================================");
+
+  console.log(
+    "===================================="
+  );
+
+  console.log(
+    "🚀 Tanmay AI Server Started"
+  );
+
+  console.log(
+    "===================================="
+  );
+
+  console.log(
+    "Groq:",
+    GROQ_MODEL
+  );
+
+  console.log(
+    "Gemini:",
+    GEMINI_MODEL
+  );
+
+  console.log(
+    "OpenRouter:",
+    OPENROUTER_MODEL
+  );
+
+  console.log(
+    "===================================="
+  );
 });

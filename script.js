@@ -1,23 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
-import {
-    getAuth,
-    signInWithPopup,
-    GoogleAuthProvider,
-    onAuthStateChanged,
-    signOut
-} from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
-
-import {
-    getFirestore,
-    collection,
-    addDoc,
-    query,
-    orderBy,
-    deleteDoc,
-    doc,
-    getDocs,
-    where
-} from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBQmzNsAaabSHw_s3gbulq45VTn4Ti0mq0",
@@ -35,90 +18,69 @@ const provider = new GoogleAuthProvider();
 
 const ADMIN_EMAILS = ["tanmaysahu652@gmail.com"];
 
-const googleOAuthUrl =
-    `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
+const googleOAuthUrl = `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
-const loginContainer = document.getElementById("login-container");
-const appContainer = document.getElementById("app-container");
-const googleLoginBtn = document.getElementById("google-login-btn");
-const logoutBtn = document.getElementById("logout-btn");
-const usernameDisplay = document.getElementById("username-display");
-const userAvatar = document.getElementById("user-avatar");
-const defaultUserIcon = document.getElementById("default-user-icon");
+const loginContainer = document.getElementById('login-container');
+const appContainer = document.getElementById('app-container');
+const googleLoginBtn = document.getElementById('google-login-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const usernameDisplay = document.getElementById('username-display');
+const userAvatar = document.getElementById('user-avatar');
+const defaultUserIcon = document.getElementById('default-user-icon');
 
-const userInput = document.getElementById("user-input");
-const sendBtn = document.getElementById("send-btn");
-const micBtn = document.getElementById("mic-btn");
-const messagesContainer = document.getElementById("messages-container");
-const toggleVoiceBtn = document.getElementById("toggle-voice-btn");
-const historyList = document.getElementById("history-list");
-const clearHistoryBtn = document.getElementById("clear-history-btn");
-const sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
-const sidebar = document.getElementById("sidebar");
-const newChatBtn = document.getElementById("new-chat-btn");
-const chatArea = document.querySelector(".chat-area");
+const userInput = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const micBtn = document.getElementById('mic-btn');
+const messagesContainer = document.getElementById('messages-container');
+const toggleVoiceBtn = document.getElementById('toggle-voice-btn');
+const historyList = document.getElementById('history-list');
+const clearHistoryBtn = document.getElementById('clear-history-btn');
+const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+const sidebar = document.getElementById('sidebar');
+const newChatBtn = document.getElementById('new-chat-btn');
+const chatArea = document.querySelector('.chat-area');
 
 let isVoiceEnabled = true;
 let recognition;
 let currentSpeakingButton = null;
-let currentUser = null;
-let currentChatId = null;
+let currentUser = null; 
+let currentChatId = null; 
 let chatHistoryContext = [];
-let isInitialLoadRunning = true;
+let isInitialLoadRunning = true; 
 
 let globalRulesCache = [];
 let userPersonalMemoryCache = [];
 
-loginContainer.classList.add("hidden");
-appContainer.classList.add("hidden");
+loginContainer.classList.add('hidden');
+appContainer.classList.add('hidden');
 
-// ==========================================
-// LOADER
-// ==========================================
-
-const globalLoader = document.createElement("div");
-
-globalLoader.classList.add("custom-loader-wrapper");
-
+const globalLoader = document.createElement('div');
+globalLoader.classList.add('custom-loader-wrapper');
 globalLoader.innerHTML = `
     <div class="chakri"></div>
     <div class="loader-text">Tanmay AI is loading...</div>
 `;
-
 document.body.appendChild(globalLoader);
 
 function removeLoader() {
     if (globalLoader && document.body.contains(globalLoader)) {
-        globalLoader.style.opacity = "0";
-
+        globalLoader.style.opacity = '0';
         setTimeout(() => {
-            if (document.body.contains(globalLoader)) {
-                document.body.removeChild(globalLoader);
-            }
+            if (document.body.contains(globalLoader)) document.body.removeChild(globalLoader);
         }, 300);
     }
 }
 
-// ==========================================
-// REFRESH / ACTIVE CHAT
-// ==========================================
-
-if (!sessionStorage.getItem("isTabRefreshed")) {
-    localStorage.removeItem("activeChatId");
-    sessionStorage.setItem("isTabRefreshed", "true");
+if (!sessionStorage.getItem('isTabRefreshed')) {
+    localStorage.removeItem('activeChatId'); 
+    sessionStorage.setItem('isTabRefreshed', 'true');
 }
-
-// ==========================================
-// LOAD MEMORIES
-// ==========================================
 
 async function loadAllMemories() {
     if (!currentUser) return;
 
     try {
-        const gSnap = await getDocs(
-            collection(db, "global_rules")
-        );
+        const gSnap = await getDocs(collection(db, "global_rules"));
 
         globalRulesCache = [];
 
@@ -148,10 +110,6 @@ async function loadAllMemories() {
     }
 }
 
-// ==========================================
-// AUTH
-// ==========================================
-
 onAuthStateChanged(auth, async (user) => {
 
     if (user) {
@@ -160,27 +118,24 @@ onAuthStateChanged(auth, async (user) => {
 
         const displayName =
             user.displayName ||
-            (user.email
-                ? user.email.split("@")[0]
-                : "User");
+            (user.email ? user.email.split('@')[0] : "User");
 
         usernameDisplay.innerText = displayName;
-
+        
         if (user.photoURL) {
             userAvatar.src = user.photoURL;
-            userAvatar.style.display = "block";
-            defaultUserIcon.style.display = "none";
+            userAvatar.style.display = 'block';
+            defaultUserIcon.style.display = 'none';
         } else {
-            userAvatar.style.display = "none";
-            defaultUserIcon.style.display = "inline-block";
+            userAvatar.style.display = 'none';
+            defaultUserIcon.style.display = 'inline-block';
         }
-
+        
         await loadAllMemories();
-
-        await loadAllSidebarTopics(true);
-
-        loginContainer.classList.add("hidden");
-        appContainer.classList.remove("hidden");
+        await loadAllSidebarTopics(true); 
+        
+        loginContainer.classList.add('hidden');
+        appContainer.classList.remove('hidden');
 
         removeLoader();
 
@@ -189,25 +144,18 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = null;
         isInitialLoadRunning = false;
 
-        loginContainer.classList.remove("hidden");
-        appContainer.classList.add("hidden");
+        loginContainer.classList.remove('hidden');
+        appContainer.classList.add('hidden');
 
         removeLoader();
     }
 });
 
-// ==========================================
-// GOOGLE LOGIN
-// ==========================================
-
-googleLoginBtn.addEventListener("click", () => {
+googleLoginBtn.addEventListener('click', () => {
 
     const isWebView =
         /wv|WebView/i.test(window.navigator.userAgent) ||
-        (!window.chrome &&
-            /Android|iPhone|iPad/i.test(
-                window.navigator.userAgent
-            ));
+        (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
 
     if (isWebView) {
 
@@ -216,58 +164,41 @@ googleLoginBtn.addEventListener("click", () => {
     } else {
 
         signInWithPopup(auth, provider)
-            .catch(err => {
-                alert("Login Error: " + err.message);
-            });
+            .catch(err => alert("Login Error: " + err.message));
     }
 });
 
-// ==========================================
-// LOGOUT
-// ==========================================
+logoutBtn.addEventListener('click', () => {
 
-logoutBtn.addEventListener("click", () => {
-
-    signOut(auth).then(() => {
-
-        window.speechSynthesis.cancel();
-
-        localStorage.removeItem("activeChatId");
-
+    signOut(auth).then(() => { 
+        window.speechSynthesis.cancel(); 
+        localStorage.removeItem('activeChatId');
     });
 });
 
-// ==========================================
-// SIDEBAR
-// ==========================================
-
-sidebarToggleBtn.addEventListener("click", (e) => {
+sidebarToggleBtn.addEventListener('click', (e) => {
 
     e.stopPropagation();
 
-    sidebar.classList.toggle("collapsed");
+    sidebar.classList.toggle('collapsed');
 });
-
-// ==========================================
-// NEW CHAT
-// ==========================================
 
 function startNewChatSession() {
 
-    currentChatId = "chat_" + Date.now();
+    currentChatId = "chat_" + Date.now(); 
 
     localStorage.setItem(
-        "activeChatId",
+        'activeChatId',
         currentChatId
-    );
+    ); 
 
     chatHistoryContext = [];
-
+    
     const displayName =
         currentUser
             ? (
                 currentUser.displayName ||
-                currentUser.email?.split("@")[0] ||
+                currentUser.email?.split('@')[0] ||
                 "User"
             )
             : "User";
@@ -276,44 +207,36 @@ function startNewChatSession() {
         currentUser &&
         currentUser.email &&
         ADMIN_EMAILS.includes(currentUser.email);
-
-    const welcomeText = isAdmin
-        ? `Hello Tanmay! You are logged in as Admin. Ask me anything or say "Remember: [info]" to update my global knowledge.`
-        : `New chat session started! Hello ${displayName}, how can I help you today?`;
+    
+    const welcomeText =
+        isAdmin 
+            ? `Hello Tanmay! You are logged in as Admin. Ask me anything or say "Remember: [info]" to update my global knowledge.`
+            : `New chat session started! Hello ${displayName}, how can I help you today?`;
 
     messagesContainer.innerHTML = `
         <div class="message ai-message">
             <div class="message-text">${welcomeText}</div>
-            <button
-                class="msg-speak-btn"
-                onclick="speakIndividualMessage(this)"
-                title="Listen / Stop">
+            <button class="msg-speak-btn" onclick="speakIndividualMessage(this)" title="Listen / Stop">
                 <i class="fa-solid fa-volume-high"></i>
             </button>
-        </div>
-    `;
-
+        </div>`;
+        
     window.speechSynthesis.cancel();
 
     resetSpeakingButtons();
 
     document
-        .querySelectorAll(".history-item-wrapper")
+        .querySelectorAll('.history-item-wrapper')
         .forEach(el =>
-            el.classList.remove("active-chat-topic")
+            el.classList.remove('active-chat-topic')
         );
-
-    if (
-        isVoiceEnabled &&
-        !isInitialLoadRunning
-    ) {
+    
+    if (isVoiceEnabled && !isInitialLoadRunning) {
 
         setTimeout(() => {
 
             const firstBtn =
-                messagesContainer.querySelector(
-                    ".msg-speak-btn"
-                );
+                messagesContainer.querySelector('.msg-speak-btn');
 
             if (firstBtn) {
 
@@ -324,18 +247,14 @@ function startNewChatSession() {
                 firstBtn.innerHTML =
                     '<i class="fa-solid fa-stop"></i>';
 
-                firstBtn.classList.add(
-                    "speaking-now"
-                );
+                firstBtn.classList.add('speaking-now');
 
                 currentSpeakingButton = firstBtn;
-
+                
                 const utterance =
-                    new SpeechSynthesisUtterance(
-                        welcomeText
-                    );
+                    new SpeechSynthesisUtterance(welcomeText);
 
-                utterance.lang = "en-US";
+                utterance.lang = 'en-US';
 
                 utterance.onend = () => {
                     resetSpeakingButtons();
@@ -345,9 +264,7 @@ function startNewChatSession() {
                     resetSpeakingButtons();
                 };
 
-                window.speechSynthesis.speak(
-                    utterance
-                );
+                window.speechSynthesis.speak(utterance);
             }
 
         }, 500);
@@ -355,17 +272,13 @@ function startNewChatSession() {
 }
 
 newChatBtn.addEventListener(
-    "click",
+    'click',
     startNewChatSession
 );
 
-// ==========================================
-// SPEECH RECOGNITION
-// ==========================================
-
 if (
-    "webkitSpeechRecognition" in window ||
-    "SpeechRecognition" in window
+    'webkitSpeechRecognition' in window ||
+    'SpeechRecognition' in window
 ) {
 
     const SpeechRecognition =
@@ -375,22 +288,16 @@ if (
     recognition = new SpeechRecognition();
 
     recognition.continuous = false;
-    recognition.lang = "en-US";
+    recognition.lang = 'en-US';
 
     recognition.onstart = () => {
-
-        micBtn.classList.add("listening");
-
-        userInput.placeholder =
-            "Listening...";
+        micBtn.classList.add('listening');
+        userInput.placeholder = "Listening...";
     };
 
     recognition.onend = () => {
-
-        micBtn.classList.remove("listening");
-
-        userInput.placeholder =
-            "Ask Tanmay AI...";
+        micBtn.classList.remove('listening');
+        userInput.placeholder = "Ask Tanmay AI...";
     };
 
     recognition.onresult = (event) => {
@@ -402,26 +309,14 @@ if (
     };
 }
 
-micBtn.addEventListener("click", () => {
+micBtn.addEventListener('click', () => {
 
     if (recognition) {
-
-        try {
-            recognition.start();
-        } catch (e) {
-            console.log(
-                "Speech recognition error:",
-                e
-            );
-        }
+        recognition.start();
     }
 });
 
-// ==========================================
-// VOICE TOGGLE
-// ==========================================
-
-toggleVoiceBtn.addEventListener("click", () => {
+toggleVoiceBtn.addEventListener('click', () => {
 
     isVoiceEnabled = !isVoiceEnabled;
 
@@ -438,21 +333,16 @@ toggleVoiceBtn.addEventListener("click", () => {
     }
 });
 
-// ==========================================
-// SPEAK INDIVIDUAL MESSAGE
-// ==========================================
-
 window.speakIndividualMessage =
-    function (buttonElement) {
+    function(buttonElement) {
 
         const messageText =
             buttonElement.parentNode
-                .querySelector(".message-text")
+                .querySelector('.message-text')
                 .innerText;
 
         if (
-            currentSpeakingButton ===
-                buttonElement &&
+            currentSpeakingButton === buttonElement &&
             window.speechSynthesis.speaking
         ) {
 
@@ -471,19 +361,17 @@ window.speakIndividualMessage =
             '<i class="fa-solid fa-stop"></i>';
 
         buttonElement.classList.add(
-            "speaking-now"
+            'speaking-now'
         );
 
         currentSpeakingButton =
             buttonElement;
-
+        
         const utterance =
-            new SpeechSynthesisUtterance(
-                messageText
-            );
+            new SpeechSynthesisUtterance(messageText);
 
-        utterance.lang = "en-US";
-
+        utterance.lang = 'en-US';
+        
         utterance.onend = () => {
             resetSpeakingButtons();
         };
@@ -497,39 +385,31 @@ window.speakIndividualMessage =
         );
     };
 
-// ==========================================
-// RESET SPEAKING BUTTONS
-// ==========================================
-
 function resetSpeakingButtons() {
 
     document
-        .querySelectorAll(".msg-speak-btn")
+        .querySelectorAll('.msg-speak-btn')
         .forEach(btn => {
 
             btn.innerHTML =
                 '<i class="fa-solid fa-volume-high"></i>';
 
             btn.classList.remove(
-                "speaking-now"
+                'speaking-now'
             );
         });
 
     currentSpeakingButton = null;
 }
 
-// ==========================================
-// USER MESSAGE
-// ==========================================
-
 function appendUserMessage(text) {
 
     const msgDiv =
-        document.createElement("div");
+        document.createElement('div');
 
     msgDiv.classList.add(
-        "message",
-        "user-message"
+        'message',
+        'user-message'
     );
 
     msgDiv.innerText = text;
@@ -542,45 +422,42 @@ function appendUserMessage(text) {
         messagesContainer.scrollHeight;
 }
 
-// ==========================================
-// AI MESSAGE
-// ==========================================
-
 function appendAIMessage(
     text,
     shouldSpeak = false
 ) {
 
     const msgDiv =
-        document.createElement("div");
+        document.createElement('div');
 
     msgDiv.classList.add(
-        "message",
-        "ai-message"
+        'message',
+        'ai-message'
     );
 
     const textDiv =
-        document.createElement("div");
+        document.createElement('div');
 
     textDiv.classList.add(
-        "message-text"
+        'message-text'
     );
 
     textDiv.innerText = text;
 
     const speakBtn =
-        document.createElement("button");
+        document.createElement('button');
 
     speakBtn.classList.add(
-        "msg-speak-btn"
+        'msg-speak-btn'
     );
 
     speakBtn.innerHTML =
         '<i class="fa-solid fa-volume-high"></i>';
 
-    speakBtn.onclick = function () {
-        speakIndividualMessage(this);
-    };
+    speakBtn.onclick =
+        function() {
+            speakIndividualMessage(this);
+        };
 
     msgDiv.appendChild(textDiv);
     msgDiv.appendChild(speakBtn);
@@ -604,9 +481,51 @@ function appendAIMessage(
     }
 }
 
-// ==========================================
+// =====================================================
+// ADMIN MODEL INFO
+// =====================================================
+
+function showAdminModelInfo(
+    providerName,
+    modelName
+) {
+
+    const isAdmin =
+        currentUser &&
+        currentUser.email &&
+        ADMIN_EMAILS.includes(
+            currentUser.email
+        );
+
+    if (
+        !isAdmin ||
+        !providerName ||
+        !modelName
+    ) {
+        return;
+    }
+
+    const modelDiv =
+        document.createElement('div');
+
+    modelDiv.classList.add(
+        'admin-model-info'
+    );
+
+    modelDiv.innerText =
+        `🤖 Model: ${providerName} • ${modelName}`;
+
+    messagesContainer.appendChild(
+        modelDiv
+    );
+
+    messagesContainer.scrollTop =
+        messagesContainer.scrollHeight;
+}
+
+// =====================================================
 // SEND MESSAGE
-// ==========================================
+// =====================================================
 
 async function sendMessage() {
 
@@ -621,14 +540,14 @@ async function sendMessage() {
             "chat_" + Date.now();
 
         localStorage.setItem(
-            "activeChatId",
+            'activeChatId',
             currentChatId
         );
     }
 
     appendUserMessage(text);
 
-    userInput.value = "";
+    userInput.value = '';
 
     chatHistoryContext.push({
         role: "user",
@@ -647,7 +566,7 @@ async function sendMessage() {
         currentUser
             ? (
                 currentUser.displayName ||
-                currentUser.email?.split("@")[0] ||
+                currentUser.email?.split('@')[0] ||
                 "User"
             )
             : "User";
@@ -659,9 +578,9 @@ async function sendMessage() {
             currentUser.email
         );
 
-    // ======================================
-    // MEMORY COMMANDS
-    // ======================================
+    // =================================================
+    // MEMORY COMMAND
+    // =================================================
 
     const memoryTriggerRegex =
         /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|sun:|suno:)\s*(.*)/i;
@@ -678,9 +597,10 @@ async function sendMessage() {
 
         if (isAdmin) {
 
-            isGlobalPublish = confirm(
-                `Do you want to publish this rule GLOBALLY to ALL users across all devices?\n\n"${learnedContent}"\n\n[OK = Publish to Everyone] [Cancel = Save Only in My Personal Memory]`
-            );
+            isGlobalPublish =
+                confirm(
+                    `Do you want to publish this rule GLOBALLY to ALL users across all devices?\n\n"${learnedContent}"\n\n[OK = Publish to Everyone] [Cancel = Save Only in My Personal Memory]`
+                );
         }
 
         if (
@@ -765,23 +685,19 @@ async function sendMessage() {
         }
     }
 
-    // ======================================
-    // LAST 6 MESSAGES
-    // ======================================
+    // =================================================
+    // CONTEXT
+    // =================================================
 
     const trimmedContext =
         chatHistoryContext.slice(-6);
 
-    // ======================================
-    // LOADING
-    // ======================================
-
     const loadingDiv =
-        document.createElement("div");
+        document.createElement('div');
 
     loadingDiv.classList.add(
-        "message",
-        "ai-message"
+        'message',
+        'ai-message'
     );
 
     loadingDiv.innerText =
@@ -794,66 +710,47 @@ async function sendMessage() {
     messagesContainer.scrollTop =
         messagesContainer.scrollHeight;
 
-    // ======================================
-    // API REQUEST
-    // ======================================
+    // =================================================
+    // API
+    // =================================================
 
     try {
 
-        const response = await fetch(
-            "https://tanmayai-11j5.onrender.com/api/chat",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                'https://tanmayai-11j5.onrender.com/api/chat',
+                {
+                    method: 'POST',
 
-                headers: {
-                    "Content-Type":
-                        "application/json"
-                },
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
 
-                body: JSON.stringify({
-                    messages:
-                        trimmedContext,
+                    body: JSON.stringify({
+                        messages:
+                            trimmedContext,
 
-                    userName:
-                        userName,
+                        userName:
+                            userName,
 
-                    userEmail:
-                        userEmail,
+                        userEmail:
+                            userEmail,
 
-                    isAdmin:
-                        isAdmin,
+                        isAdmin:
+                            isAdmin,
 
-                    globalRules:
-                        globalRulesCache,
+                        globalRules:
+                            globalRulesCache,
 
-                    personalMemory:
-                        userPersonalMemoryCache
-                })
-            }
-        );
-
-        // ==================================
-        // READ SERVER RESPONSE SAFELY
-        // ==================================
-
-        let data = null;
-
-        try {
-
-            data =
-                await response.json();
-
-        } catch (jsonError) {
-
-            console.error(
-                "Invalid JSON from backend:",
-                jsonError
+                        personalMemory:
+                            userPersonalMemoryCache
+                    })
+                }
             );
 
-            throw new Error(
-                `Backend returned invalid response (${response.status})`
-            );
-        }
+        const data =
+            await response.json();
 
         if (
             loadingDiv &&
@@ -867,13 +764,8 @@ async function sendMessage() {
             );
         }
 
-        // ==================================
-        // SUCCESS
-        // ==================================
-
         if (
             response.ok &&
-            data &&
             data.reply
         ) {
 
@@ -890,6 +782,23 @@ async function sendMessage() {
                 true
             );
 
+            // =================================================
+            // ONLY ADMIN SEES WHICH MODEL ANSWERED
+            // =================================================
+
+            if (
+                isAdmin &&
+                data.showModel &&
+                data.provider &&
+                data.model
+            ) {
+
+                showAdminModelInfo(
+                    data.provider,
+                    data.model
+                );
+            }
+
             await saveMessageToFirebase(
                 currentChatId,
                 text,
@@ -903,13 +812,9 @@ async function sendMessage() {
                 data
             );
 
-            const serverMessage =
-                data?.reply ||
-                data?.error ||
-                `Server error (${response.status})`;
-
             appendAIMessage(
-                serverMessage,
+                data.reply ||
+                "Received an invalid response from server.",
                 true
             );
         }
@@ -934,38 +839,26 @@ async function sendMessage() {
         );
 
         appendAIMessage(
-            "⚠️ Tanmay AI backend se connect nahi ho pa raha. Server/Render deployment aur API keys check karo.",
+            "Unable to connect to backend server.",
             true
         );
     }
 }
 
-// ==========================================
-// SEND BUTTON
-// ==========================================
-
 sendBtn.addEventListener(
-    "click",
+    'click',
     sendMessage
 );
 
-// ==========================================
-// ENTER KEY
-// ==========================================
-
 userInput.addEventListener(
-    "keypress",
+    'keypress',
     (e) => {
 
-        if (e.key === "Enter") {
+        if (e.key === 'Enter') {
             sendMessage();
         }
     }
 );
-
-// ==========================================
-// SAVE CHAT MESSAGE
-// ==========================================
 
 async function saveMessageToFirebase(
     chatId,
@@ -979,31 +872,44 @@ async function saveMessageToFirebase(
 
         const calculatedName =
             currentUser.displayName ||
-            currentUser.email?.split("@")[0] ||
+            currentUser.email?.split('@')[0] ||
             "User";
-
+        
         await addDoc(
             collection(
                 db,
                 "chat_messages"
             ),
             {
-                uid: currentUser.uid,
-                userName: calculatedName,
+                uid:
+                    currentUser.uid,
+
+                userName:
+                    calculatedName,
+
                 userEmail:
                     currentUser.email ||
                     "No Email",
+
                 userPhoto:
                     currentUser.photoURL ||
                     "",
-                chatId: chatId,
-                userText: userText,
-                aiText: aiText,
-                timestamp: Date.now()
+
+                chatId:
+                    chatId,
+
+                userText:
+                    userText,
+
+                aiText:
+                    aiText,
+
+                timestamp:
+                    Date.now()
             }
         );
 
-        loadAllSidebarTopics(false);
+        loadAllSidebarTopics(false); 
 
     } catch (e) {
 
@@ -1014,10 +920,6 @@ async function saveMessageToFirebase(
     }
 }
 
-// ==========================================
-// LOAD SIDEBAR TOPICS
-// ==========================================
-
 async function loadAllSidebarTopics(
     isInitialLoad = false
 ) {
@@ -1026,12 +928,10 @@ async function loadAllSidebarTopics(
 
     try {
 
-        historyList.innerHTML = "";
+        historyList.innerHTML = '';
 
         const chatIdsInOrder = [];
-
-        const seenChatIds =
-            new Set();
+        const seenChatIds = new Set();
 
         const qNew =
             query(
@@ -1100,9 +1000,9 @@ async function loadAllSidebarTopics(
 
             const savedChatId =
                 localStorage.getItem(
-                    "activeChatId"
-                );
-
+                    'activeChatId'
+                ); 
+            
             if (
                 savedChatId &&
                 seenChatIds.has(
@@ -1115,10 +1015,10 @@ async function loadAllSidebarTopics(
 
                 await loadFullChatSession(
                     currentChatId
-                );
+                ); 
 
                 isInitialLoadRunning =
-                    false;
+                    false; 
 
             } else {
 
@@ -1141,20 +1041,16 @@ async function loadAllSidebarTopics(
     }
 }
 
-// ==========================================
-// ADD TOPIC TO SIDEBAR
-// ==========================================
-
 function addTopicToSidebarUI(
     firstQuestion,
     chatId
 ) {
 
     const wrapper =
-        document.createElement("div");
+        document.createElement('div');
 
     wrapper.classList.add(
-        "history-item-wrapper"
+        'history-item-wrapper'
     );
 
     if (
@@ -1162,59 +1058,57 @@ function addTopicToSidebarUI(
     ) {
 
         wrapper.classList.add(
-            "active-chat-topic"
+            'active-chat-topic'
         );
     }
 
     const textSpan =
-        document.createElement("span");
+        document.createElement('span');
 
     textSpan.classList.add(
-        "history-text"
+        'history-text'
     );
 
     textSpan.innerText =
         firstQuestion.length > 18
-            ? firstQuestion.substring(
-                  0,
-                  18
-              ) + "..."
+            ? firstQuestion.substring(0, 18) + "..."
             : firstQuestion;
-
-    textSpan.onclick = () => {
+    
+    textSpan.onclick = () => { 
 
         currentChatId =
-            chatId;
+            chatId; 
 
         localStorage.setItem(
-            "activeChatId",
+            'activeChatId',
             chatId
-        );
+        ); 
 
         document
             .querySelectorAll(
-                ".history-item-wrapper"
+                '.history-item-wrapper'
             )
-            .forEach(el =>
-                el.classList.remove(
-                    "active-chat-topic"
-                )
+            .forEach(
+                el =>
+                    el.classList.remove(
+                        'active-chat-topic'
+                    )
             );
 
         wrapper.classList.add(
-            "active-chat-topic"
+            'active-chat-topic'
         );
 
         loadFullChatSession(
             chatId
-        );
+        ); 
     };
 
     const deleteBtn =
-        document.createElement("button");
+        document.createElement('button');
 
     deleteBtn.classList.add(
-        "delete-item-btn"
+        'delete-item-btn'
     );
 
     deleteBtn.innerHTML =
@@ -1267,7 +1161,7 @@ function addTopicToSidebarUI(
                 ) {
 
                     localStorage.removeItem(
-                        "activeChatId"
+                        'activeChatId'
                     );
 
                     startNewChatSession();
@@ -1289,19 +1183,15 @@ function addTopicToSidebarUI(
 
     historyList.appendChild(
         wrapper
-    );
+    ); 
 }
-
-// ==========================================
-// LOAD FULL CHAT
-// ==========================================
 
 async function loadFullChatSession(
     chatId
 ) {
 
     messagesContainer.innerHTML =
-        "";
+        '';
 
     chatHistoryContext = [];
 
@@ -1322,7 +1212,7 @@ async function loadFullChatSession(
 
         const querySnapshot =
             await getDocs(q);
-
+        
         const localMessages = [];
 
         querySnapshot.forEach(
@@ -1374,7 +1264,7 @@ async function loadFullChatSession(
                 });
             }
         );
-
+        
         messagesContainer.scrollTop =
             messagesContainer.scrollHeight;
 
@@ -1387,12 +1277,8 @@ async function loadFullChatSession(
     }
 }
 
-// ==========================================
-// CLEAR HISTORY
-// ==========================================
-
 clearHistoryBtn.addEventListener(
-    "click",
+    'click',
     async () => {
 
         if (!currentUser) return;
@@ -1416,7 +1302,7 @@ clearHistoryBtn.addEventListener(
 
             for (
                 const d of snap.docs
-            ) {
+            ) { 
 
                 if (
                     d.data().uid ===
@@ -1429,57 +1315,53 @@ clearHistoryBtn.addEventListener(
                             "chat_messages",
                             d.id
                         )
-                    );
+                    ); 
                 }
             }
 
             localStorage.removeItem(
-                "activeChatId"
+                'activeChatId'
             );
 
             startNewChatSession();
 
             historyList.innerHTML =
-                "";
+                '';
         }
     }
 );
 
-// ==========================================
-// SIDEBAR AUTO COLLAPSE
-// ==========================================
-
 chatArea.addEventListener(
-    "click",
+    'click',
     () => {
 
         if (
             !sidebar.classList.contains(
-                "collapsed"
+                'collapsed'
             )
         ) {
 
             sidebar.classList.add(
-                "collapsed"
+                'collapsed'
             );
         }
     }
 );
 
 userInput.addEventListener(
-    "click",
+    'click',
     (e) => {
 
         e.stopPropagation();
 
         if (
             !sidebar.classList.contains(
-                "collapsed"
+                'collapsed'
             )
         ) {
 
             sidebar.classList.add(
-                "collapsed"
+                'collapsed'
             );
         }
     }

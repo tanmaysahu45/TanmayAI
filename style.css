@@ -598,3 +598,10 @@ body {
         padding: 12px 16px 80px 16px !important; 
     }
 }
+
+.admin-model-info {
+    font-size: 12px;
+    opacity: 0.7;
+    margin: -4px 0 12px 12px;
+    font-family: monospace;
+}
