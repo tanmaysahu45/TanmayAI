@@ -1,6 +1,24 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, orderBy, deleteDoc, doc, getDocs, where } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+import {
+    getAuth,
+    signInWithPopup,
+    GoogleAuthProvider,
+    onAuthStateChanged,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
+
+import {
+    getFirestore,
+    collection,
+    addDoc,
+    query,
+    orderBy,
+    deleteDoc,
+    doc,
+    getDocs,
+    where,
+    updateDoc
+} from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBQmzNsAaabSHw_s3gbulq45VTn4Ti0mq0",
@@ -16,227 +34,449 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-const ADMIN_EMAILS = ["tanmaysahu652@gmail.com"];
+const ADMIN_EMAILS = [
+    "tanmaysahu652@gmail.com"
+];
 
-const googleOAuthUrl = `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
+const googleOAuthUrl =
+    `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
-const loginContainer = document.getElementById('login-container');
-const appContainer = document.getElementById('app-container');
-const googleLoginBtn = document.getElementById('google-login-btn');
-const logoutBtn = document.getElementById('logout-btn');
-const usernameDisplay = document.getElementById('username-display');
-const userAvatar = document.getElementById('user-avatar');
-const defaultUserIcon = document.getElementById('default-user-icon');
+const loginContainer =
+    document.getElementById("login-container");
 
-const userInput = document.getElementById('user-input');
-const sendBtn = document.getElementById('send-btn');
-const micBtn = document.getElementById('mic-btn');
-const messagesContainer = document.getElementById('messages-container');
-const toggleVoiceBtn = document.getElementById('toggle-voice-btn');
-const historyList = document.getElementById('history-list');
-const clearHistoryBtn = document.getElementById('clear-history-btn');
-const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
-const sidebar = document.getElementById('sidebar');
-const newChatBtn = document.getElementById('new-chat-btn');
-const chatArea = document.querySelector('.chat-area');
+const appContainer =
+    document.getElementById("app-container");
+
+const googleLoginBtn =
+    document.getElementById("google-login-btn");
+
+const logoutBtn =
+    document.getElementById("logout-btn");
+
+const usernameDisplay =
+    document.getElementById("username-display");
+
+const userAvatar =
+    document.getElementById("user-avatar");
+
+const defaultUserIcon =
+    document.getElementById("default-user-icon");
+
+const userInput =
+    document.getElementById("user-input");
+
+const sendBtn =
+    document.getElementById("send-btn");
+
+const micBtn =
+    document.getElementById("mic-btn");
+
+const messagesContainer =
+    document.getElementById("messages-container");
+
+const toggleVoiceBtn =
+    document.getElementById("toggle-voice-btn");
+
+const historyList =
+    document.getElementById("history-list");
+
+const clearHistoryBtn =
+    document.getElementById("clear-history-btn");
+
+const sidebarToggleBtn =
+    document.getElementById("sidebar-toggle-btn");
+
+const sidebar =
+    document.getElementById("sidebar");
+
+const newChatBtn =
+    document.getElementById("new-chat-btn");
+
+const chatArea =
+    document.querySelector(".chat-area");
 
 let isVoiceEnabled = true;
-let recognition;
+let recognition = null;
 let currentSpeakingButton = null;
-let currentUser = null; 
-let currentChatId = null; 
+let currentUser = null;
+let currentChatId = null;
 let chatHistoryContext = [];
-let isInitialLoadRunning = true; 
+let isInitialLoadRunning = true;
 
 let globalRulesCache = [];
+let globalRulesDocs = [];
+
 let userPersonalMemoryCache = [];
 
-loginContainer.classList.add('hidden');
-appContainer.classList.add('hidden');
+let lastQuestionForEdit = "";
+let lastAIResponseForEdit = "";
 
-const globalLoader = document.createElement('div');
-globalLoader.classList.add('custom-loader-wrapper');
+loginContainer.classList.add("hidden");
+appContainer.classList.add("hidden");
+
+// =====================================================
+// LOADER
+// =====================================================
+
+const globalLoader =
+    document.createElement("div");
+
+globalLoader.classList.add(
+    "custom-loader-wrapper"
+);
+
 globalLoader.innerHTML = `
     <div class="chakri"></div>
-    <div class="loader-text">Tanmay AI is loading...</div>
+    <div class="loader-text">
+        Tanmay AI is loading...
+    </div>
 `;
-document.body.appendChild(globalLoader);
+
+document.body.appendChild(
+    globalLoader
+);
 
 function removeLoader() {
-    if (globalLoader && document.body.contains(globalLoader)) {
-        globalLoader.style.opacity = '0';
+
+    if (
+        globalLoader &&
+        document.body.contains(globalLoader)
+    ) {
+
+        globalLoader.style.opacity = "0";
+
         setTimeout(() => {
-            if (document.body.contains(globalLoader)) document.body.removeChild(globalLoader);
+
+            if (
+                document.body.contains(
+                    globalLoader
+                )
+            ) {
+                document.body.removeChild(
+                    globalLoader
+                );
+            }
+
         }, 300);
     }
 }
 
-if (!sessionStorage.getItem('isTabRefreshed')) {
-    localStorage.removeItem('activeChatId'); 
-    sessionStorage.setItem('isTabRefreshed', 'true');
+// =====================================================
+// ADMIN
+// =====================================================
+
+function isCurrentUserAdmin() {
+
+    return !!(
+        currentUser &&
+        currentUser.email &&
+        ADMIN_EMAILS.includes(
+            currentUser.email.toLowerCase()
+        )
+    );
 }
 
+// =====================================================
+// MEMORY LOAD
+// =====================================================
+
 async function loadAllMemories() {
+
     if (!currentUser) return;
 
     try {
-        const gSnap = await getDocs(collection(db, "global_rules"));
+
+        // -------------------------------
+        // GLOBAL
+        // -------------------------------
+
+        const gSnap =
+            await getDocs(
+                collection(
+                    db,
+                    "global_rules"
+                )
+            );
 
         globalRulesCache = [];
+        globalRulesDocs = [];
 
-        gSnap.forEach(d => {
-            if (d.data()?.rule) {
-                globalRulesCache.push(d.data().rule);
+        gSnap.forEach(
+            d => {
+
+                const data = d.data();
+
+                if (data?.rule) {
+
+                    globalRulesCache.push(
+                        data.rule
+                    );
+
+                    globalRulesDocs.push({
+                        id: d.id,
+                        ...data
+                    });
+                }
             }
-        });
-
-        const uSnap = await getDocs(
-            collection(
-                db,
-                `users_memory/${currentUser.uid}/memories`
-            )
         );
+
+        // -------------------------------
+        // PERSONAL
+        // -------------------------------
+
+        const uSnap =
+            await getDocs(
+                collection(
+                    db,
+                    `users_memory/${currentUser.uid}/memories`
+                )
+            );
 
         userPersonalMemoryCache = [];
 
-        uSnap.forEach(d => {
-            if (d.data()?.memory) {
-                userPersonalMemoryCache.push(d.data().memory);
-            }
-        });
+        uSnap.forEach(
+            d => {
 
-    } catch (e) {
-        console.error("Memory load error:", e);
+                if (d.data()?.memory) {
+
+                    userPersonalMemoryCache.push(
+                        d.data().memory
+                    );
+                }
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Memory load error:",
+            error
+        );
     }
 }
 
-onAuthStateChanged(auth, async (user) => {
+// =====================================================
+// AUTH
+// =====================================================
 
-    if (user) {
+onAuthStateChanged(
+    auth,
+    async user => {
 
-        currentUser = user;
+        if (user) {
 
-        const displayName =
-            user.displayName ||
-            (user.email ? user.email.split('@')[0] : "User");
+            currentUser = user;
 
-        usernameDisplay.innerText = displayName;
-        
-        if (user.photoURL) {
-            userAvatar.src = user.photoURL;
-            userAvatar.style.display = 'block';
-            defaultUserIcon.style.display = 'none';
+            const displayName =
+                user.displayName ||
+                user.email?.split("@")[0] ||
+                "User";
+
+            usernameDisplay.innerText =
+                displayName;
+
+            if (user.photoURL) {
+
+                userAvatar.src =
+                    user.photoURL;
+
+                userAvatar.style.display =
+                    "block";
+
+                defaultUserIcon.style.display =
+                    "none";
+
+            } else {
+
+                userAvatar.style.display =
+                    "none";
+
+                defaultUserIcon.style.display =
+                    "inline-block";
+            }
+
+            await loadAllMemories();
+
+            await loadAllSidebarTopics(
+                true
+            );
+
+            createAdminControls();
+
+            loginContainer.classList.add(
+                "hidden"
+            );
+
+            appContainer.classList.remove(
+                "hidden"
+            );
+
+            removeLoader();
+
         } else {
-            userAvatar.style.display = 'none';
-            defaultUserIcon.style.display = 'inline-block';
+
+            currentUser = null;
+
+            loginContainer.classList.remove(
+                "hidden"
+            );
+
+            appContainer.classList.add(
+                "hidden"
+            );
+
+            removeLoader();
         }
-        
-        await loadAllMemories();
-        await loadAllSidebarTopics(true); 
-        
-        loginContainer.classList.add('hidden');
-        appContainer.classList.remove('hidden');
-
-        removeLoader();
-
-    } else {
-
-        currentUser = null;
-        isInitialLoadRunning = false;
-
-        loginContainer.classList.remove('hidden');
-        appContainer.classList.add('hidden');
-
-        removeLoader();
     }
-});
+);
 
-googleLoginBtn.addEventListener('click', () => {
+// =====================================================
+// LOGIN
+// =====================================================
 
-    const isWebView =
-        /wv|WebView/i.test(window.navigator.userAgent) ||
-        (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
+googleLoginBtn.addEventListener(
+    "click",
+    () => {
 
-    if (isWebView) {
+        const isWebView =
+            /wv|WebView/i.test(
+                window.navigator.userAgent
+            ) ||
+            (
+                !window.chrome &&
+                /Android|iPhone|iPad/i.test(
+                    window.navigator.userAgent
+                )
+            );
 
-        window.location.href = googleOAuthUrl;
+        if (isWebView) {
 
-    } else {
+            window.location.href =
+                googleOAuthUrl;
 
-        signInWithPopup(auth, provider)
-            .catch(err => alert("Login Error: " + err.message));
+        } else {
+
+            signInWithPopup(
+                auth,
+                provider
+            ).catch(
+                error =>
+                    alert(
+                        "Login Error: " +
+                        error.message
+                    )
+            );
+        }
     }
-});
+);
 
-logoutBtn.addEventListener('click', () => {
+// =====================================================
+// LOGOUT
+// =====================================================
 
-    signOut(auth).then(() => { 
-        window.speechSynthesis.cancel(); 
-        localStorage.removeItem('activeChatId');
-    });
-});
+logoutBtn.addEventListener(
+    "click",
+    () => {
 
-sidebarToggleBtn.addEventListener('click', (e) => {
+        signOut(auth).then(
+            () => {
 
-    e.stopPropagation();
+                window.speechSynthesis.cancel();
 
-    sidebar.classList.toggle('collapsed');
-});
+                localStorage.removeItem(
+                    "activeChatId"
+                );
+            }
+        );
+    }
+);
+
+// =====================================================
+// SIDEBAR
+// =====================================================
+
+sidebarToggleBtn.addEventListener(
+    "click",
+    e => {
+
+        e.stopPropagation();
+
+        sidebar.classList.toggle(
+            "collapsed"
+        );
+    }
+);
+
+// =====================================================
+// NEW CHAT
+// =====================================================
 
 function startNewChatSession() {
 
-    currentChatId = "chat_" + Date.now(); 
+    currentChatId =
+        "chat_" + Date.now();
 
     localStorage.setItem(
-        'activeChatId',
+        "activeChatId",
         currentChatId
-    ); 
+    );
 
     chatHistoryContext = [];
-    
+
     const displayName =
         currentUser
             ? (
                 currentUser.displayName ||
-                currentUser.email?.split('@')[0] ||
+                currentUser.email?.split("@")[0] ||
                 "User"
             )
             : "User";
 
-    const isAdmin =
-        currentUser &&
-        currentUser.email &&
-        ADMIN_EMAILS.includes(currentUser.email);
-    
     const welcomeText =
-        isAdmin 
-            ? `Hello Tanmay! You are logged in as Admin. Ask me anything or say "Remember: [info]" to update my global knowledge.`
-            : `New chat session started! Hello ${displayName}, how can I help you today?`;
+        isCurrentUserAdmin()
+            ? "Hello Tanmay! 👑 You are Admin. AI se kuchh bhi poochho. Kisi jawab ko correct karke Global Knowledge mein save bhi kar sakte ho."
+            : `Hello ${displayName}! 👋 Main Tanmay AI hoon. Main tumhari personal memory yaad rakh sakta hoon.`;
 
     messagesContainer.innerHTML = `
         <div class="message ai-message">
             <div class="message-text">${welcomeText}</div>
-            <button class="msg-speak-btn" onclick="speakIndividualMessage(this)" title="Listen / Stop">
+
+            <button
+                class="msg-speak-btn"
+                onclick="speakIndividualMessage(this)"
+                title="Listen / Stop"
+            >
                 <i class="fa-solid fa-volume-high"></i>
             </button>
-        </div>`;
-        
+        </div>
+    `;
+
     window.speechSynthesis.cancel();
 
     resetSpeakingButtons();
 
     document
-        .querySelectorAll('.history-item-wrapper')
-        .forEach(el =>
-            el.classList.remove('active-chat-topic')
+        .querySelectorAll(
+            ".history-item-wrapper"
+        )
+        .forEach(
+            el =>
+                el.classList.remove(
+                    "active-chat-topic"
+                )
         );
-    
-    if (isVoiceEnabled && !isInitialLoadRunning) {
+
+    if (
+        isVoiceEnabled &&
+        !isInitialLoadRunning
+    ) {
 
         setTimeout(() => {
 
             const firstBtn =
-                messagesContainer.querySelector('.msg-speak-btn');
+                messagesContainer.querySelector(
+                    ".msg-speak-btn"
+                );
 
             if (firstBtn) {
 
@@ -247,24 +487,30 @@ function startNewChatSession() {
                 firstBtn.innerHTML =
                     '<i class="fa-solid fa-stop"></i>';
 
-                firstBtn.classList.add('speaking-now');
+                firstBtn.classList.add(
+                    "speaking-now"
+                );
 
-                currentSpeakingButton = firstBtn;
-                
+                currentSpeakingButton =
+                    firstBtn;
+
                 const utterance =
-                    new SpeechSynthesisUtterance(welcomeText);
+                    new SpeechSynthesisUtterance(
+                        welcomeText
+                    );
 
-                utterance.lang = 'en-US';
+                utterance.lang =
+                    "en-US";
 
-                utterance.onend = () => {
-                    resetSpeakingButtons();
-                };
+                utterance.onend =
+                    resetSpeakingButtons;
 
-                utterance.onerror = () => {
-                    resetSpeakingButtons();
-                };
+                utterance.onerror =
+                    resetSpeakingButtons;
 
-                window.speechSynthesis.speak(utterance);
+                window.speechSynthesis.speak(
+                    utterance
+                );
             }
 
         }, 500);
@@ -272,77 +518,115 @@ function startNewChatSession() {
 }
 
 newChatBtn.addEventListener(
-    'click',
+    "click",
     startNewChatSession
 );
 
+// =====================================================
+// VOICE INPUT
+// =====================================================
+
 if (
-    'webkitSpeechRecognition' in window ||
-    'SpeechRecognition' in window
+    "webkitSpeechRecognition" in window ||
+    "SpeechRecognition" in window
 ) {
 
     const SpeechRecognition =
         window.SpeechRecognition ||
         window.webkitSpeechRecognition;
 
-    recognition = new SpeechRecognition();
+    recognition =
+        new SpeechRecognition();
 
-    recognition.continuous = false;
-    recognition.lang = 'en-US';
+    recognition.continuous =
+        false;
+
+    recognition.lang =
+        "en-US";
 
     recognition.onstart = () => {
-        micBtn.classList.add('listening');
-        userInput.placeholder = "Listening...";
+
+        micBtn.classList.add(
+            "listening"
+        );
+
+        userInput.placeholder =
+            "Listening...";
     };
 
     recognition.onend = () => {
-        micBtn.classList.remove('listening');
-        userInput.placeholder = "Ask Tanmay AI...";
+
+        micBtn.classList.remove(
+            "listening"
+        );
+
+        userInput.placeholder =
+            "Ask Tanmay AI...";
     };
 
-    recognition.onresult = (event) => {
+    recognition.onresult =
+        event => {
 
-        userInput.value =
-            event.results[0][0].transcript;
+            userInput.value =
+                event.results[0][0]
+                    .transcript;
 
-        sendMessage();
-    };
+            sendMessage();
+        };
 }
 
-micBtn.addEventListener('click', () => {
+micBtn.addEventListener(
+    "click",
+    () => {
 
-    if (recognition) {
-        recognition.start();
+        if (recognition) {
+
+            try {
+                recognition.start();
+            } catch {}
+        }
     }
-});
+);
 
-toggleVoiceBtn.addEventListener('click', () => {
+// =====================================================
+// VOICE OUTPUT
+// =====================================================
 
-    isVoiceEnabled = !isVoiceEnabled;
+toggleVoiceBtn.addEventListener(
+    "click",
+    () => {
 
-    toggleVoiceBtn.innerHTML =
-        isVoiceEnabled
-            ? '<i class="fa-solid fa-volume-high"></i>'
-            : '<i class="fa-solid fa-volume-xmark"></i>';
+        isVoiceEnabled =
+            !isVoiceEnabled;
 
-    if (!isVoiceEnabled) {
+        toggleVoiceBtn.innerHTML =
+            isVoiceEnabled
+                ? '<i class="fa-solid fa-volume-high"></i>'
+                : '<i class="fa-solid fa-volume-xmark"></i>';
 
-        window.speechSynthesis.cancel();
+        if (!isVoiceEnabled) {
 
-        resetSpeakingButtons();
+            window.speechSynthesis.cancel();
+
+            resetSpeakingButtons();
+        }
     }
-});
+);
 
 window.speakIndividualMessage =
     function(buttonElement) {
 
         const messageText =
-            buttonElement.parentNode
-                .querySelector('.message-text')
+            buttonElement
+                .parentNode
+                .querySelector(
+                    ".message-text"
+                )
                 .innerText;
 
         if (
-            currentSpeakingButton === buttonElement &&
+            currentSpeakingButton ===
+                buttonElement &&
             window.speechSynthesis.speaking
         ) {
 
@@ -361,24 +645,25 @@ window.speakIndividualMessage =
             '<i class="fa-solid fa-stop"></i>';
 
         buttonElement.classList.add(
-            'speaking-now'
+            "speaking-now"
         );
 
         currentSpeakingButton =
             buttonElement;
-        
+
         const utterance =
-            new SpeechSynthesisUtterance(messageText);
+            new SpeechSynthesisUtterance(
+                messageText
+            );
 
-        utterance.lang = 'en-US';
-        
-        utterance.onend = () => {
-            resetSpeakingButtons();
-        };
+        utterance.lang =
+            "en-US";
 
-        utterance.onerror = () => {
-            resetSpeakingButtons();
-        };
+        utterance.onend =
+            resetSpeakingButtons;
+
+        utterance.onerror =
+            resetSpeakingButtons;
 
         window.speechSynthesis.speak(
             utterance
@@ -388,31 +673,41 @@ window.speakIndividualMessage =
 function resetSpeakingButtons() {
 
     document
-        .querySelectorAll('.msg-speak-btn')
+        .querySelectorAll(
+            ".msg-speak-btn"
+        )
         .forEach(btn => {
 
             btn.innerHTML =
                 '<i class="fa-solid fa-volume-high"></i>';
 
             btn.classList.remove(
-                'speaking-now'
+                "speaking-now"
             );
         });
 
-    currentSpeakingButton = null;
+    currentSpeakingButton =
+        null;
 }
+
+// =====================================================
+// USER MESSAGE
+// =====================================================
 
 function appendUserMessage(text) {
 
     const msgDiv =
-        document.createElement('div');
+        document.createElement(
+            "div"
+        );
 
     msgDiv.classList.add(
-        'message',
-        'user-message'
+        "message",
+        "user-message"
     );
 
-    msgDiv.innerText = text;
+    msgDiv.innerText =
+        text;
 
     messagesContainer.appendChild(
         msgDiv
@@ -422,45 +717,111 @@ function appendUserMessage(text) {
         messagesContainer.scrollHeight;
 }
 
+// =====================================================
+// AI MESSAGE
+// =====================================================
+
 function appendAIMessage(
     text,
-    shouldSpeak = false
+    shouldSpeak = false,
+    questionText = ""
 ) {
 
     const msgDiv =
-        document.createElement('div');
+        document.createElement(
+            "div"
+        );
 
     msgDiv.classList.add(
-        'message',
-        'ai-message'
+        "message",
+        "ai-message"
     );
 
     const textDiv =
-        document.createElement('div');
+        document.createElement(
+            "div"
+        );
 
     textDiv.classList.add(
-        'message-text'
+        "message-text"
     );
 
-    textDiv.innerText = text;
+    textDiv.innerText =
+        text;
 
     const speakBtn =
-        document.createElement('button');
+        document.createElement(
+            "button"
+        );
 
     speakBtn.classList.add(
-        'msg-speak-btn'
+        "msg-speak-btn"
     );
 
     speakBtn.innerHTML =
         '<i class="fa-solid fa-volume-high"></i>';
 
     speakBtn.onclick =
-        function() {
-            speakIndividualMessage(this);
+        function () {
+            speakIndividualMessage(
+                this
+            );
         };
 
-    msgDiv.appendChild(textDiv);
-    msgDiv.appendChild(speakBtn);
+    msgDiv.appendChild(
+        textDiv
+    );
+
+    msgDiv.appendChild(
+        speakBtn
+    );
+
+    // =================================================
+    // ADMIN ONLY CONTROLS
+    // =================================================
+
+    if (isCurrentUserAdmin()) {
+
+        const controls =
+            document.createElement(
+                "div"
+            );
+
+        controls.classList.add(
+            "admin-ai-controls"
+        );
+
+        const editBtn =
+            document.createElement(
+                "button"
+            );
+
+        editBtn.className =
+            "admin-edit-answer-btn";
+
+        editBtn.innerHTML =
+            "✏️ Edit";
+
+        editBtn.title =
+            "Correct this AI answer and save it globally";
+
+        editBtn.onclick =
+            () => {
+
+                openEditGlobalAnswer(
+                    questionText,
+                    text
+                );
+            };
+
+        controls.appendChild(
+            editBtn
+        );
+
+        msgDiv.appendChild(
+            controls
+        );
+    }
 
     messagesContainer.appendChild(
         msgDiv
@@ -482,45 +843,452 @@ function appendAIMessage(
 }
 
 // =====================================================
-// ADMIN MODEL INFO
+// ADMIN CONTROL PANEL
 // =====================================================
 
-function showAdminModelInfo(
-    providerName,
-    modelName
-) {
+function createAdminControls() {
 
-    const isAdmin =
-        currentUser &&
-        currentUser.email &&
-        ADMIN_EMAILS.includes(
-            currentUser.email
-        );
+    if (!isCurrentUserAdmin()) {
+        return;
+    }
 
     if (
-        !isAdmin ||
-        !providerName ||
-        !modelName
+        document.getElementById(
+            "tanmay-admin-panel"
+        )
     ) {
         return;
     }
 
-    const modelDiv =
-        document.createElement('div');
+    const panel =
+        document.createElement(
+            "div"
+        );
 
-    modelDiv.classList.add(
-        'admin-model-info'
+    panel.id =
+        "tanmay-admin-panel";
+
+    panel.innerHTML = `
+        <div class="tanmay-admin-title">
+            👑 Admin
+        </div>
+
+        <button
+            id="add-global-memory-btn"
+            class="tanmay-admin-button"
+        >
+            ➕ Add Global
+        </button>
+
+        <button
+            id="manage-global-memory-btn"
+            class="tanmay-admin-button"
+        >
+            🧠 Global Memory
+        </button>
+    `;
+
+    sidebar.prepend(
+        panel
     );
 
-    modelDiv.innerText =
-        `🤖 Model: ${providerName} • ${modelName}`;
+    document
+        .getElementById(
+            "add-global-memory-btn"
+        )
+        .onclick =
+        openAddGlobalMemory;
 
-    messagesContainer.appendChild(
-        modelDiv
+    document
+        .getElementById(
+            "manage-global-memory-btn"
+        )
+        .onclick =
+        openGlobalMemoryManager;
+}
+
+// =====================================================
+// ADD GLOBAL
+// =====================================================
+
+function openAddGlobalMemory() {
+
+    if (!isCurrentUserAdmin()) {
+        return;
+    }
+
+    const information =
+        prompt(
+            "Global Knowledge mein kya add karna hai?\n\nExample:\nTanmay ke mama Manesh Sahu hain."
+        );
+
+    if (
+        information === null ||
+        !information.trim()
+    ) {
+        return;
+    }
+
+    addGlobalInformation(
+        information.trim()
+    );
+}
+
+async function addGlobalInformation(
+    information
+) {
+
+    if (!isCurrentUserAdmin()) {
+        alert(
+            "Only Admin can add Global Knowledge."
+        );
+
+        return;
+    }
+
+    try {
+
+        await addDoc(
+            collection(
+                db,
+                "global_rules"
+            ),
+            {
+                rule:
+                    information,
+
+                addedBy:
+                    currentUser.email,
+
+                timestamp:
+                    Date.now()
+            }
+        );
+
+        await loadAllMemories();
+
+        alert(
+            "✅ Global information save ho gayi."
+        );
+
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
+        alert(
+            "Global information save nahi ho saki."
+        );
+    }
+}
+
+// =====================================================
+// EDIT AI ANSWER -> GLOBAL
+// =====================================================
+
+function openEditGlobalAnswer(
+    question,
+    oldAnswer
+) {
+
+    if (!isCurrentUserAdmin()) {
+        return;
+    }
+
+    const editedAnswer =
+        prompt(
+            "AI ke jawab ko correct karo.\n\nQuestion:\n" +
+            question +
+            "\n\nCorrect answer:",
+            oldAnswer
+        );
+
+    if (
+        editedAnswer === null ||
+        !editedAnswer.trim()
+    ) {
+        return;
+    }
+
+    const globalKnowledge =
+        `Question: ${question}\nCorrect information/answer: ${editedAnswer.trim()}`;
+
+    addGlobalInformation(
+        globalKnowledge
+    );
+}
+
+// =====================================================
+// GLOBAL MEMORY MANAGER
+// =====================================================
+
+async function openGlobalMemoryManager() {
+
+    if (!isCurrentUserAdmin()) {
+        return;
+    }
+
+    await loadAllMemories();
+
+    const overlay =
+        document.createElement(
+            "div"
+        );
+
+    overlay.className =
+        "tanmay-memory-overlay";
+
+    const box =
+        document.createElement(
+            "div"
+        );
+
+    box.className =
+        "tanmay-memory-box";
+
+    box.innerHTML = `
+        <div class="tanmay-memory-header">
+            <strong>🧠 Global Knowledge</strong>
+
+            <button
+                class="tanmay-close-memory"
+            >
+                ✕
+            </button>
+        </div>
+
+        <div
+            class="tanmay-memory-list"
+            id="tanmay-global-memory-list"
+        ></div>
+    `;
+
+    overlay.appendChild(
+        box
     );
 
-    messagesContainer.scrollTop =
-        messagesContainer.scrollHeight;
+    document.body.appendChild(
+        overlay
+    );
+
+    const list =
+        document.getElementById(
+            "tanmay-global-memory-list"
+        );
+
+    if (!globalRulesDocs.length) {
+
+        list.innerHTML =
+            `<div class="tanmay-empty-memory">
+                Abhi koi Global Knowledge nahi hai.
+            </div>`;
+
+    } else {
+
+        globalRulesDocs.forEach(
+            item => {
+
+                const row =
+                    document.createElement(
+                        "div"
+                    );
+
+                row.className =
+                    "tanmay-memory-row";
+
+                const text =
+                    document.createElement(
+                        "div"
+                    );
+
+                text.className =
+                    "tanmay-memory-text";
+
+                text.innerText =
+                    item.rule;
+
+                const buttons =
+                    document.createElement(
+                        "div"
+                    );
+
+                buttons.className =
+                    "tanmay-memory-buttons";
+
+                const editBtn =
+                    document.createElement(
+                        "button"
+                    );
+
+                editBtn.innerText =
+                    "✏️ Edit";
+
+                editBtn.onclick =
+                    async () => {
+
+                        const newValue =
+                            prompt(
+                                "Global information edit karo:",
+                                item.rule
+                            );
+
+                        if (
+                            newValue === null ||
+                            !newValue.trim()
+                        ) {
+                            return;
+                        }
+
+                        try {
+
+                            await updateDoc(
+                                doc(
+                                    db,
+                                    "global_rules",
+                                    item.id
+                                ),
+                                {
+                                    rule:
+                                        newValue.trim(),
+
+                                    updatedBy:
+                                        currentUser.email,
+
+                                    updatedAt:
+                                        Date.now()
+                                }
+                            );
+
+                            await loadAllMemories();
+
+                            row.remove();
+
+                        } catch (error) {
+
+                            console.error(
+                                error
+                            );
+
+                            alert(
+                                "Edit save nahi hua."
+                            );
+                        }
+                    };
+
+                const deleteBtn =
+                    document.createElement(
+                        "button"
+                    );
+
+                deleteBtn.innerText =
+                    "🗑️ Delete";
+
+                deleteBtn.onclick =
+                    async () => {
+
+                        if (
+                            !confirm(
+                                "Is Global information ko delete karna hai?"
+                            )
+                        ) {
+                            return;
+                        }
+
+                        try {
+
+                            await deleteDoc(
+                                doc(
+                                    db,
+                                    "global_rules",
+                                    item.id
+                                )
+                            );
+
+                            await loadAllMemories();
+
+                            row.remove();
+
+                        } catch (error) {
+
+                            console.error(
+                                error
+                            );
+
+                            alert(
+                                "Delete nahi hua."
+                            );
+                        }
+                    };
+
+                buttons.appendChild(
+                    editBtn
+                );
+
+                buttons.appendChild(
+                    deleteBtn
+                );
+
+                row.appendChild(
+                    text
+                );
+
+                row.appendChild(
+                    buttons
+                );
+
+                list.appendChild(
+                    row
+                );
+            }
+        );
+    }
+
+    box.querySelector(
+        ".tanmay-close-memory"
+    ).onclick =
+        () => overlay.remove();
+
+    overlay.onclick =
+        event => {
+
+            if (
+                event.target === overlay
+            ) {
+                overlay.remove();
+            }
+        };
+}
+
+// =====================================================
+// PERSONAL MEMORY
+// =====================================================
+
+async function savePersonalMemory(
+    content
+) {
+
+    if (!currentUser) {
+        return;
+    }
+
+    await addDoc(
+        collection(
+            db,
+            `users_memory/${currentUser.uid}/memories`
+        ),
+        {
+            memory:
+                content,
+
+            timestamp:
+                Date.now()
+        }
+    );
+
+    userPersonalMemoryCache.push(
+        content
+    );
 }
 
 // =====================================================
@@ -532,7 +1300,17 @@ async function sendMessage() {
     const text =
         userInput.value.trim();
 
-    if (!text) return;
+    if (!text) {
+        return;
+    }
+
+    if (!currentUser) {
+        alert(
+            "Pehle login karo."
+        );
+
+        return;
+    }
 
     if (!currentChatId) {
 
@@ -540,14 +1318,17 @@ async function sendMessage() {
             "chat_" + Date.now();
 
         localStorage.setItem(
-            'activeChatId',
+            "activeChatId",
             currentChatId
         );
     }
 
-    appendUserMessage(text);
+    appendUserMessage(
+        text
+    );
 
-    userInput.value = '';
+    userInput.value =
+        "";
 
     chatHistoryContext.push({
         role: "user",
@@ -555,149 +1336,152 @@ async function sendMessage() {
     });
 
     const userEmail =
-        currentUser
-            ? (
-                currentUser.email ||
-                "No Email"
-            )
-            : "No Email";
+        currentUser.email ||
+        "No Email";
 
     const userName =
-        currentUser
-            ? (
-                currentUser.displayName ||
-                currentUser.email?.split('@')[0] ||
-                "User"
-            )
-            : "User";
-
-    const isAdmin =
-        currentUser &&
-        currentUser.email &&
-        ADMIN_EMAILS.includes(
-            currentUser.email
-        );
+        currentUser.displayName ||
+        currentUser.email?.split("@")[0] ||
+        "User";
 
     // =================================================
-    // MEMORY COMMAND
+    // NORMAL USER PERSONAL MEMORY
     // =================================================
 
     const memoryTriggerRegex =
-        /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|sun:|suno:)\s*(.*)/i;
+        /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|suno:|sun:)\s*(.*)/i;
 
     const match =
-        text.match(memoryTriggerRegex);
+        text.match(
+            memoryTriggerRegex
+        );
 
-    if (match && match[2]) {
+    if (
+        match &&
+        match[2]
+    ) {
 
         const learnedContent =
             match[2].trim();
 
-        let isGlobalPublish = false;
-
-        if (isAdmin) {
-
-            isGlobalPublish =
-                confirm(
-                    `Do you want to publish this rule GLOBALLY to ALL users across all devices?\n\n"${learnedContent}"\n\n[OK = Publish to Everyone] [Cancel = Save Only in My Personal Memory]`
-                );
-        }
+        // -----------------------------------------------
+        // ADMIN
+        // -----------------------------------------------
 
         if (
-            isAdmin &&
-            isGlobalPublish
+            isCurrentUserAdmin()
         ) {
 
-            await addDoc(
-                collection(
-                    db,
-                    "global_rules"
-                ),
-                {
-                    rule: learnedContent,
-                    addedBy: userEmail,
-                    timestamp: Date.now()
-                }
-            );
+            const choice =
+                confirm(
+                    "Is information ko Global banana hai?\n\nOK = Global\nCancel = Sirf meri Personal Memory"
+                );
 
-            globalRulesCache.push(
-                learnedContent
-            );
+            if (choice) {
 
-            const confirmationMsg =
-                `✅ Published Globally! I have updated my global memory for ALL users: "${learnedContent}"`;
+                await addGlobalInformation(
+                    learnedContent
+                );
 
-            chatHistoryContext.push({
-                role: "assistant",
-                content: confirmationMsg
-            });
+                const msg =
+                    "✅ Ye information Global Knowledge mein save ho gayi. Ab relevant questions par sab users ke AI ko ye information milegi.";
 
-            appendAIMessage(
-                confirmationMsg,
-                true
-            );
+                chatHistoryContext.push({
+                    role: "assistant",
+                    content: msg
+                });
 
-            await saveMessageToFirebase(
-                currentChatId,
-                text,
-                confirmationMsg
-            );
+                appendAIMessage(
+                    msg,
+                    true,
+                    text
+                );
 
-            return;
+                await saveMessageToFirebase(
+                    currentChatId,
+                    text,
+                    msg
+                );
 
-        } else {
+                return;
 
-            await addDoc(
-                collection(
-                    db,
-                    `users_memory/${currentUser.uid}/memories`
-                ),
-                {
-                    memory: learnedContent,
-                    timestamp: Date.now()
-                }
-            );
+            } else {
 
-            userPersonalMemoryCache.push(
-                learnedContent
-            );
+                await savePersonalMemory(
+                    learnedContent
+                );
 
-            const confirmationMsg =
-                `✅ Saved Privately! I have saved this strictly in your personal memory profile: "${learnedContent}"`;
+                const msg =
+                    "✅ Ye information sirf tumhari Personal Memory mein save ho gayi.";
 
-            chatHistoryContext.push({
-                role: "assistant",
-                content: confirmationMsg
-            });
+                chatHistoryContext.push({
+                    role: "assistant",
+                    content: msg
+                });
 
-            appendAIMessage(
-                confirmationMsg,
-                true
-            );
+                appendAIMessage(
+                    msg,
+                    true,
+                    text
+                );
 
-            await saveMessageToFirebase(
-                currentChatId,
-                text,
-                confirmationMsg
-            );
+                await saveMessageToFirebase(
+                    currentChatId,
+                    text,
+                    msg
+                );
 
-            return;
+                return;
+            }
         }
+
+        // -----------------------------------------------
+        // NORMAL USER
+        // ONLY PERSONAL
+        // -----------------------------------------------
+
+        await savePersonalMemory(
+            learnedContent
+        );
+
+        const msg =
+            "✅ Theek hai, maine ise tumhari personal memory mein yaad rakh liya.";
+
+        chatHistoryContext.push({
+            role: "assistant",
+            content: msg
+        });
+
+        appendAIMessage(
+            msg,
+            true,
+            text
+        );
+
+        await saveMessageToFirebase(
+            currentChatId,
+            text,
+            msg
+        );
+
+        return;
     }
 
     // =================================================
-    // CONTEXT
+    // AI REQUEST
     // =================================================
 
     const trimmedContext =
-        chatHistoryContext.slice(-6);
+        chatHistoryContext.slice(-8);
 
     const loadingDiv =
-        document.createElement('div');
+        document.createElement(
+            "div"
+        );
 
     loadingDiv.classList.add(
-        'message',
-        'ai-message'
+        "message",
+        "ai-message"
     );
 
     loadingDiv.innerText =
@@ -710,42 +1494,37 @@ async function sendMessage() {
     messagesContainer.scrollTop =
         messagesContainer.scrollHeight;
 
-    // =================================================
-    // API
-    // =================================================
-
     try {
 
         const response =
             await fetch(
-                'https://tanmayai-11j5.onrender.com/api/chat',
+                "https://tanmayai-11j5.onrender.com/api/chat",
                 {
-                    method: 'POST',
+                    method: "POST",
 
                     headers: {
-                        'Content-Type':
-                            'application/json'
+                        "Content-Type":
+                            "application/json"
                     },
 
-                    body: JSON.stringify({
-                        messages:
-                            trimmedContext,
+                    body:
+                        JSON.stringify({
 
-                        userName:
-                            userName,
+                            messages:
+                                trimmedContext,
 
-                        userEmail:
-                            userEmail,
+                            userName:
+                                userName,
 
-                        isAdmin:
-                            isAdmin,
+                            userEmail:
+                                userEmail,
 
-                        globalRules:
-                            globalRulesCache,
+                            globalRules:
+                                globalRulesCache,
 
-                        personalMemory:
-                            userPersonalMemoryCache
-                    })
+                            personalMemory:
+                                userPersonalMemoryCache
+                        })
                 }
             );
 
@@ -753,7 +1532,6 @@ async function sendMessage() {
             await response.json();
 
         if (
-            loadingDiv &&
             messagesContainer.contains(
                 loadingDiv
             )
@@ -772,30 +1550,48 @@ async function sendMessage() {
             const aiResponse =
                 data.reply;
 
+            lastQuestionForEdit =
+                text;
+
+            lastAIResponseForEdit =
+                aiResponse;
+
             chatHistoryContext.push({
                 role: "assistant",
-                content: aiResponse
+                content:
+                    aiResponse
             });
 
             appendAIMessage(
                 aiResponse,
-                true
+                true,
+                text
             );
 
-            // =================================================
-            // ONLY ADMIN SEES WHICH MODEL ANSWERED
-            // =================================================
+            // -----------------------------------------
+            // MODEL NAME: ADMIN ONLY
+            // -----------------------------------------
 
             if (
-                isAdmin &&
+                isCurrentUserAdmin() &&
                 data.showModel &&
                 data.provider &&
                 data.model
             ) {
 
-                showAdminModelInfo(
-                    data.provider,
-                    data.model
+                const modelInfo =
+                    document.createElement(
+                        "div"
+                    );
+
+                modelInfo.className =
+                    "admin-model-info";
+
+                modelInfo.innerText =
+                    `🤖 ${data.provider} • ${data.model}`;
+
+                messagesContainer.appendChild(
+                    modelInfo
                 );
             }
 
@@ -807,22 +1603,22 @@ async function sendMessage() {
 
         } else {
 
-            console.error(
-                "Backend AI Error:",
-                data
-            );
-
             appendAIMessage(
                 data.reply ||
-                "Received an invalid response from server.",
-                true
+                "Abhi AI ka proper response nahi aaya.",
+                true,
+                text
             );
         }
 
     } catch (error) {
 
+        console.error(
+            "Tanmay AI Error:",
+            error
+        );
+
         if (
-            loadingDiv &&
             messagesContainer.contains(
                 loadingDiv
             )
@@ -833,32 +1629,32 @@ async function sendMessage() {
             );
         }
 
-        console.error(
-            "Tanmay AI API Error:",
-            error
-        );
-
         appendAIMessage(
-            "Unable to connect to backend server.",
-            true
+            "Bhai, abhi server se connection nahi ho pa raha. Thodi der baad try karo.",
+            true,
+            text
         );
     }
 }
 
 sendBtn.addEventListener(
-    'click',
+    "click",
     sendMessage
 );
 
 userInput.addEventListener(
-    'keypress',
-    (e) => {
+    "keypress",
+    e => {
 
-        if (e.key === 'Enter') {
+        if (e.key === "Enter") {
             sendMessage();
         }
     }
 );
+
+// =====================================================
+// SAVE CHAT
+// =====================================================
 
 async function saveMessageToFirebase(
     chatId,
@@ -866,21 +1662,24 @@ async function saveMessageToFirebase(
     aiText
 ) {
 
-    if (!currentUser) return;
+    if (!currentUser) {
+        return;
+    }
 
     try {
 
         const calculatedName =
             currentUser.displayName ||
-            currentUser.email?.split('@')[0] ||
+            currentUser.email?.split("@")[0] ||
             "User";
-        
+
         await addDoc(
             collection(
                 db,
                 "chat_messages"
             ),
             {
+
                 uid:
                     currentUser.uid,
 
@@ -909,31 +1708,43 @@ async function saveMessageToFirebase(
             }
         );
 
-        loadAllSidebarTopics(false); 
+        loadAllSidebarTopics(
+            false
+        );
 
-    } catch (e) {
+    } catch (error) {
 
         console.error(
             "Firebase Save Error:",
-            e
+            error
         );
     }
 }
+
+// =====================================================
+// SIDEBAR TOPICS
+// =====================================================
 
 async function loadAllSidebarTopics(
     isInitialLoad = false
 ) {
 
-    if (!currentUser) return;
+    if (!currentUser) {
+        return;
+    }
 
     try {
 
-        historyList.innerHTML = '';
+        historyList.innerHTML =
+            "";
 
-        const chatIdsInOrder = [];
-        const seenChatIds = new Set();
+        const chatIdsInOrder =
+            [];
 
-        const qNew =
+        const seenChatIds =
+            new Set();
+
+        const q =
             query(
                 collection(
                     db,
@@ -945,11 +1756,11 @@ async function loadAllSidebarTopics(
                 )
             );
 
-        const snapNew =
-            await getDocs(qNew);
+        const snap =
+            await getDocs(q);
 
-        snapNew.forEach(
-            (docSnap) => {
+        snap.forEach(
+            docSnap => {
 
                 const data =
                     docSnap.data();
@@ -1000,9 +1811,9 @@ async function loadAllSidebarTopics(
 
             const savedChatId =
                 localStorage.getItem(
-                    'activeChatId'
-                ); 
-            
+                    "activeChatId"
+                );
+
             if (
                 savedChatId &&
                 seenChatIds.has(
@@ -1015,10 +1826,10 @@ async function loadAllSidebarTopics(
 
                 await loadFullChatSession(
                     currentChatId
-                ); 
+                );
 
                 isInitialLoadRunning =
-                    false; 
+                    false;
 
             } else {
 
@@ -1029,11 +1840,11 @@ async function loadAllSidebarTopics(
             }
         }
 
-    } catch (err) {
+    } catch (error) {
 
         console.error(
-            "Error loading sidebar topics:",
-            err
+            "Sidebar error:",
+            error
         );
 
         isInitialLoadRunning =
@@ -1041,16 +1852,22 @@ async function loadAllSidebarTopics(
     }
 }
 
+// =====================================================
+// SIDEBAR ITEM
+// =====================================================
+
 function addTopicToSidebarUI(
     firstQuestion,
     chatId
 ) {
 
     const wrapper =
-        document.createElement('div');
+        document.createElement(
+            "div"
+        );
 
     wrapper.classList.add(
-        'history-item-wrapper'
+        "history-item-wrapper"
     );
 
     if (
@@ -1058,92 +1875,107 @@ function addTopicToSidebarUI(
     ) {
 
         wrapper.classList.add(
-            'active-chat-topic'
+            "active-chat-topic"
         );
     }
 
     const textSpan =
-        document.createElement('span');
+        document.createElement(
+            "span"
+        );
 
     textSpan.classList.add(
-        'history-text'
+        "history-text"
     );
 
     textSpan.innerText =
         firstQuestion.length > 18
-            ? firstQuestion.substring(0, 18) + "..."
+            ? firstQuestion.substring(
+                0,
+                18
+            ) + "..."
             : firstQuestion;
-    
-    textSpan.onclick = () => { 
 
-        currentChatId =
-            chatId; 
+    textSpan.onclick =
+        () => {
 
-        localStorage.setItem(
-            'activeChatId',
-            chatId
-        ); 
+            currentChatId =
+                chatId;
 
-        document
-            .querySelectorAll(
-                '.history-item-wrapper'
-            )
-            .forEach(
-                el =>
-                    el.classList.remove(
-                        'active-chat-topic'
-                    )
+            localStorage.setItem(
+                "activeChatId",
+                chatId
             );
 
-        wrapper.classList.add(
-            'active-chat-topic'
-        );
+            document
+                .querySelectorAll(
+                    ".history-item-wrapper"
+                )
+                .forEach(
+                    el =>
+                        el.classList.remove(
+                            "active-chat-topic"
+                        )
+                );
 
-        loadFullChatSession(
-            chatId
-        ); 
-    };
+            wrapper.classList.add(
+                "active-chat-topic"
+            );
+
+            loadFullChatSession(
+                chatId
+            );
+        };
 
     const deleteBtn =
-        document.createElement('button');
+        document.createElement(
+            "button"
+        );
 
     deleteBtn.classList.add(
-        'delete-item-btn'
+        "delete-item-btn"
     );
 
     deleteBtn.innerHTML =
         '<i class="fa-solid fa-trash-can"></i>';
 
     deleteBtn.onclick =
-        async (e) => {
+        async e => {
 
             e.stopPropagation();
 
             if (
-                confirm(
+                !confirm(
                     "Do you want to delete this chat?"
                 )
             ) {
+                return;
+            }
 
-                const q =
-                    query(
-                        collection(
-                            db,
-                            "chat_messages"
-                        ),
-                        where(
-                            "chatId",
-                            "==",
-                            chatId
-                        )
-                    );
+            const q =
+                query(
+                    collection(
+                        db,
+                        "chat_messages"
+                    ),
+                    where(
+                        "chatId",
+                        "==",
+                        chatId
+                    )
+                );
 
-                const snap =
-                    await getDocs(q);
+            const snap =
+                await getDocs(q);
 
-                for (
-                    const docSnap of
-                    snap.docs
+            for (
+                const docSnap of
+                snap.docs
+            ) {
+
+                if (
+                    docSnap.data().uid ===
+                    currentUser.uid
                 ) {
 
                     await deleteDoc(
@@ -1154,23 +1986,23 @@ function addTopicToSidebarUI(
                         )
                     );
                 }
-
-                if (
-                    currentChatId ===
-                    chatId
-                ) {
-
-                    localStorage.removeItem(
-                        'activeChatId'
-                    );
-
-                    startNewChatSession();
-                }
-
-                loadAllSidebarTopics(
-                    false
-                );
             }
+
+            if (
+                currentChatId ===
+                chatId
+            ) {
+
+                localStorage.removeItem(
+                    "activeChatId"
+                );
+
+                startNewChatSession();
+            }
+
+            loadAllSidebarTopics(
+                false
+            );
         };
 
     wrapper.appendChild(
@@ -1183,15 +2015,19 @@ function addTopicToSidebarUI(
 
     historyList.appendChild(
         wrapper
-    ); 
+    );
 }
+
+// =====================================================
+// LOAD CHAT
+// =====================================================
 
 async function loadFullChatSession(
     chatId
 ) {
 
     messagesContainer.innerHTML =
-        '';
+        "";
 
     chatHistoryContext = [];
 
@@ -1210,13 +2046,14 @@ async function loadFullChatSession(
                 )
             );
 
-        const querySnapshot =
+        const snapshot =
             await getDocs(q);
-        
-        const localMessages = [];
 
-        querySnapshot.forEach(
-            (docSnap) => {
+        const localMessages =
+            [];
+
+        snapshot.forEach(
+            docSnap => {
 
                 const data =
                     docSnap.data();
@@ -1239,130 +2076,271 @@ async function loadFullChatSession(
                 b.timestamp
         );
 
-        localMessages.forEach(
-            data => {
+        for (
+            const data of
+            localMessages
+        ) {
 
-                appendUserMessage(
+            appendUserMessage(
+                data.userText
+            );
+
+            chatHistoryContext.push({
+                role: "user",
+                content:
                     data.userText
-                );
+            });
 
-                chatHistoryContext.push({
-                    role: "user",
-                    content:
-                        data.userText
-                });
+            appendAIMessage(
+                data.aiText,
+                false,
+                data.userText
+            );
 
-                appendAIMessage(
-                    data.aiText,
-                    false
-                );
+            chatHistoryContext.push({
+                role: "assistant",
+                content:
+                    data.aiText
+            });
+        }
 
-                chatHistoryContext.push({
-                    role: "assistant",
-                    content:
-                        data.aiText
-                });
-            }
-        );
-        
         messagesContainer.scrollTop =
             messagesContainer.scrollHeight;
 
-    } catch (err) {
+    } catch (error) {
 
         console.error(
-            "Session fetch error:",
-            err
+            "Session error:",
+            error
         );
     }
 }
 
+// =====================================================
+// CLEAR HISTORY
+// =====================================================
+
 clearHistoryBtn.addEventListener(
-    'click',
+    "click",
     async () => {
 
-        if (!currentUser) return;
+        if (!currentUser) {
+            return;
+        }
 
         if (
-            confirm(
+            !confirm(
                 "Are you sure you want to clear all chat history?"
             )
         ) {
+            return;
+        }
 
-            const q =
-                query(
-                    collection(
-                        db,
-                        "chat_messages"
-                    )
-                );
-
-            const snap =
-                await getDocs(q);
-
-            for (
-                const d of snap.docs
-            ) { 
-
-                if (
-                    d.data().uid ===
-                    currentUser.uid
-                ) {
-
-                    await deleteDoc(
-                        doc(
-                            db,
-                            "chat_messages",
-                            d.id
-                        )
-                    ); 
-                }
-            }
-
-            localStorage.removeItem(
-                'activeChatId'
+        const q =
+            query(
+                collection(
+                    db,
+                    "chat_messages"
+                )
             );
 
-            startNewChatSession();
+        const snap =
+            await getDocs(q);
 
-            historyList.innerHTML =
-                '';
+        for (
+            const d of
+            snap.docs
+        ) {
+
+            if (
+                d.data().uid ===
+                currentUser.uid
+            ) {
+
+                await deleteDoc(
+                    doc(
+                        db,
+                        "chat_messages",
+                        d.id
+                    )
+                );
+            }
         }
+
+        localStorage.removeItem(
+            "activeChatId"
+        );
+
+        startNewChatSession();
+
+        historyList.innerHTML =
+            "";
     }
 );
 
+// =====================================================
+// SIDEBAR AUTO CLOSE
+// =====================================================
+
 chatArea.addEventListener(
-    'click',
+    "click",
     () => {
 
         if (
             !sidebar.classList.contains(
-                'collapsed'
+                "collapsed"
             )
         ) {
 
             sidebar.classList.add(
-                'collapsed'
+                "collapsed"
             );
         }
     }
 );
 
 userInput.addEventListener(
-    'click',
-    (e) => {
+    "click",
+    e => {
 
         e.stopPropagation();
 
         if (
             !sidebar.classList.contains(
-                'collapsed'
+                "collapsed"
             )
         ) {
 
             sidebar.classList.add(
-                'collapsed'
+                "collapsed"
             );
         }
     }
+);
+
+// =====================================================
+// ADMIN UI CSS
+// =====================================================
+
+const adminStyle =
+    document.createElement(
+        "style"
+    );
+
+adminStyle.innerHTML = `
+
+.admin-model-info {
+    font-size: 11px;
+    opacity: 0.65;
+    margin: 3px 0 12px 12px;
+    font-family: monospace;
+}
+
+.admin-ai-controls {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.admin-edit-answer-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 5px 9px;
+    cursor: pointer;
+    font-size: 12px;
+    background: rgba(100,100,100,.12);
+}
+
+.admin-edit-answer-btn:hover {
+    opacity: .75;
+}
+
+#tanmay-admin-panel {
+    padding: 8px;
+    margin-bottom: 8px;
+}
+
+.tanmay-admin-title {
+    font-weight: 700;
+    margin-bottom: 7px;
+}
+
+.tanmay-admin-button {
+    width: 100%;
+    border: none;
+    border-radius: 9px;
+    padding: 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+}
+
+.tanmay-memory-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+    padding: 18px;
+}
+
+.tanmay-memory-box {
+    width: min(650px, 100%);
+    max-height: 85vh;
+    overflow: auto;
+    border-radius: 16px;
+    padding: 16px;
+    background: var(--background, #fff);
+}
+
+.tanmay-memory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.tanmay-close-memory {
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.tanmay-memory-row {
+    border: 1px solid rgba(128,128,128,.25);
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 9px;
+}
+
+.tanmay-memory-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 8px;
+}
+
+.tanmay-memory-buttons {
+    display: flex;
+    gap: 7px;
+}
+
+.tanmay-memory-buttons button {
+    border: none;
+    border-radius: 8px;
+    padding: 6px 9px;
+    cursor: pointer;
+}
+
+.tanmay-empty-memory {
+    opacity: .7;
+    padding: 20px;
+    text-align: center;
+}
+
+`;
+
+document.head.appendChild(
+    adminStyle
 );
