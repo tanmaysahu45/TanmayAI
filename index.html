@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#131314">
+    <meta name="theme-color" content="#0f0f10">
     <meta name="description" content="Tanmay AI - Your personal AI assistant by Tanmay Sahu">
     <title>Tanmay AI</title>
 
@@ -16,14 +16,13 @@
     <meta name="apple-mobile-web-app-title" content="Tanmay AI">
     <meta name="mobile-web-app-capable" content="yes">
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=4">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
     <div id="toast-container"></div>
 
-    <!-- LOGIN -->
     <div class="login-container" id="login-container">
         <div class="login-card">
             <div class="login-logo">
@@ -39,12 +38,10 @@
         </div>
     </div>
 
-    <!-- APP -->
     <div class="app-container hidden" id="app-container">
 
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-        <!-- SIDEBAR -->
         <aside class="sidebar collapsed" id="sidebar">
             <div class="sidebar-content">
 
@@ -53,17 +50,17 @@
                         <i class="fa-solid fa-plus"></i>
                         <span>New Chat</span>
                     </button>
-                    <button class="sidebar-close-btn" id="sidebar-close-btn" title="Close">
+                    <button class="sidebar-close-btn" id="sidebar-close-btn">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
 
                 <div class="sidebar-nav">
-                    <button class="sidebar-nav-btn active" data-view="chat" id="nav-chat">
+                    <button class="sidebar-nav-btn active" id="nav-chat">
                         <i class="fa-solid fa-comments"></i>
                         <span>Chat</span>
                     </button>
-                    <button class="sidebar-nav-btn" data-view="study" id="nav-study">
+                    <button class="sidebar-nav-btn" id="nav-study">
                         <i class="fa-solid fa-graduation-cap"></i>
                         <span>Study</span>
                     </button>
@@ -96,7 +93,6 @@
             </div>
         </aside>
 
-        <!-- CHAT -->
         <main class="chat-area">
             <header class="chat-header">
                 <div class="header-left">
@@ -121,10 +117,8 @@
                 </div>
             </header>
 
-            <!-- CHAT VIEW -->
             <div class="messages-container" id="messages-container"></div>
 
-            <!-- STUDY VIEW -->
             <div class="study-container hidden" id="study-container">
                 <div class="study-tabs">
                     <button class="study-tab active" data-tab="notes">
@@ -138,7 +132,6 @@
                     </button>
                 </div>
 
-                <!-- NOTES TAB -->
                 <div class="study-panel active" id="study-panel-notes">
                     <div class="study-notes-input">
                         <input type="text" id="note-title-input" placeholder="Title (jaise: Photosynthesis)">
@@ -148,7 +141,6 @@
                     <div class="study-list" id="notes-list"></div>
                 </div>
 
-                <!-- QUIZ TAB -->
                 <div class="study-panel" id="study-panel-quiz">
                     <div class="quiz-setup">
                         <input type="text" id="quiz-topic-input" placeholder="Topic likho (jaise: Solar System)">
@@ -165,7 +157,6 @@
                     <div class="quiz-display hidden" id="quiz-display"></div>
                 </div>
 
-                <!-- FORMULA TAB -->
                 <div class="study-panel" id="study-panel-formula">
                     <div class="formula-input">
                         <input type="text" id="formula-topic-input" placeholder="Formula ka naam (jaise: Area of Circle)">
@@ -177,11 +168,29 @@
             </div>
 
             <footer class="chat-footer" id="chat-footer">
+
+                <!-- INLINE IMAGE PREVIEW (chhota, input ke upar) -->
+                <div class="pending-image-bar hidden" id="pending-image-bar">
+                    <div class="pending-thumb-wrap">
+                        <img id="pending-thumb" src="" alt="">
+                        <button class="pending-remove" id="pending-remove">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <input type="text" id="pending-caption" placeholder="Caption likho... (optional)" autocomplete="off">
+                </div>
+
                 <div class="input-wrapper">
                     <button id="image-btn" title="Photo bhejo">
                         <i class="fa-solid fa-image"></i>
                     </button>
                     <input type="file" id="image-input" accept="image/*" hidden>
+
+                    <button id="camera-btn" title="Camera">
+                        <i class="fa-solid fa-camera"></i>
+                    </button>
+                    <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+
                     <button id="mic-btn" title="Speak">
                         <i class="fa-solid fa-microphone"></i>
                     </button>
@@ -198,30 +207,17 @@
         </main>
     </div>
 
-    <!-- IMAGE PREVIEW MODAL -->
-    <div class="image-preview-overlay hidden" id="image-preview-overlay">
-        <div class="image-preview-box">
-            <img id="image-preview-img" src="" alt="preview">
-            <div class="image-preview-actions">
-                <button class="ip-cancel" id="ip-cancel"><i class="fa-solid fa-xmark"></i> Cancel</button>
-                <button class="ip-send" id="ip-send"><i class="fa-solid fa-paper-plane"></i> Send</button>
-            </div>
-            <input type="text" id="ip-caption" placeholder="Kuch likhna hai? (optional)">
-        </div>
-    </div>
-
-    <!-- VOICE CALL MODE -->
     <div class="call-overlay hidden" id="call-overlay">
         <div class="call-screen">
             <div class="call-status" id="call-status">Tap mic to start</div>
 
-            <div class="call-avatar" id="call-avatar">
+            <div class="call-avatar">
                 <div class="call-avatar-inner">T</div>
-                <div class="call-ring" id="call-ring"></div>
+                <div class="call-ring"></div>
             </div>
 
             <div class="call-name">Tanmay AI</div>
-            <div class="call-sub" id="call-sub">Voice Call Mode</div>
+            <div class="call-sub" id="call-sub">Voice Call</div>
 
             <div class="call-wave" id="call-wave">
                 <span></span><span></span><span></span><span></span><span></span>
@@ -238,7 +234,6 @@
         </div>
     </div>
 
-    <!-- SETTINGS MODAL -->
     <div class="settings-overlay hidden" id="settings-overlay">
         <div class="settings-panel">
             <div class="settings-header">
@@ -249,7 +244,6 @@
             </div>
 
             <div class="settings-body">
-
                 <section class="settings-section">
                     <h3>Account</h3>
                     <div class="account-card">
@@ -328,7 +322,7 @@
                         <div class="about-logo">T</div>
                         <div>
                             <strong>Tanmay AI</strong>
-                            <small>Version 3.0</small>
+                            <small>Version 3.2</small>
                             <small>Made by Tanmay Sahu</small>
                         </div>
                     </div>
@@ -339,11 +333,10 @@
                         <i class="fa-solid fa-right-from-bracket"></i> Sign Out
                     </button>
                 </section>
-
             </div>
         </div>
     </div>
 
-    <script type="module" src="script.js"></script>
+    <script type="module" src="script.js?v=4"></script>
 </body>
 </html>
