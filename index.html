@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#131314">
     <title>Tanmay AI</title>
 
     <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/512/artificial-intelligence.png">
@@ -15,6 +16,7 @@
 
     <div id="toast-container"></div>
 
+    <!-- LOGIN -->
     <div class="login-container" id="login-container">
         <div class="login-card">
             <div class="login-logo">
@@ -30,15 +32,24 @@
         </div>
     </div>
 
+    <!-- APP -->
     <div class="app-container hidden" id="app-container">
 
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
+        <!-- SIDEBAR -->
         <aside class="sidebar collapsed" id="sidebar">
             <div class="sidebar-content">
-                <button class="new-chat-btn" id="new-chat-btn">
-                    <i class="fa-solid fa-plus"></i> New Chat
-                </button>
+
+                <div class="sidebar-top">
+                    <button class="new-chat-btn" id="new-chat-btn">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>New Chat</span>
+                    </button>
+                    <button class="sidebar-close-btn" id="sidebar-close-btn" title="Close">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
 
                 <div class="search-box">
                     <i class="fa-solid fa-magnifying-glass"></i>
@@ -46,26 +57,28 @@
                 </div>
 
                 <div class="history-container">
-                    <h3>Chat History</h3>
+                    <h3>Recent</h3>
                     <div id="history-list"></div>
                 </div>
 
                 <div class="sidebar-footer">
-                    <button id="clear-history-btn">
-                        <i class="fa-solid fa-trash"></i> Clear All History
+                    <button class="settings-btn" id="open-settings-btn">
+                        <i class="fa-solid fa-gear"></i>
+                        <span>Settings</span>
                     </button>
-                    <div class="user-profile">
-                        <img id="user-avatar" src="" alt="User" style="width:28px; height:28px; border-radius:50%; display:none;">
-                        <i id="default-user-icon" class="fa-solid fa-user-circle" style="font-size:20px;"></i>
-                        <span id="username-display">Loading...</span>
-                        <button id="logout-btn" title="Logout">
-                            <i class="fa-solid fa-right-from-bracket"></i>
-                        </button>
+                    <div class="user-profile" id="user-profile-btn">
+                        <img id="user-avatar" src="" alt="User" style="width:32px; height:32px; border-radius:50%; display:none;">
+                        <i id="default-user-icon" class="fa-solid fa-user-circle" style="font-size:22px;"></i>
+                        <div class="user-info">
+                            <span id="username-display">Loading...</span>
+                            <small id="useremail-display">...</small>
+                        </div>
                     </div>
                 </div>
             </div>
         </aside>
 
+        <!-- CHAT -->
         <main class="chat-area">
             <header class="chat-header">
                 <div class="header-left">
@@ -99,9 +112,109 @@
                         <i class="fa-solid fa-paper-plane"></i>
                     </button>
                 </div>
-                <div class="footer-credit">Made by Tanmay Sahu • 2025</div>
+                <div class="footer-credit">Made by Tanmay Sahu</div>
             </footer>
         </main>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div class="settings-overlay hidden" id="settings-overlay">
+        <div class="settings-panel">
+            <div class="settings-header">
+                <h2><i class="fa-solid fa-gear"></i> Settings</h2>
+                <button class="settings-close" id="close-settings-btn">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="settings-body">
+
+                <!-- ACCOUNT -->
+                <section class="settings-section">
+                    <h3>Account</h3>
+                    <div class="account-card">
+                        <img id="settings-avatar" src="" alt="" style="display:none;">
+                        <i id="settings-default-icon" class="fa-solid fa-user-circle"></i>
+                        <div class="account-info">
+                            <strong id="settings-username">User</strong>
+                            <small id="settings-useremail">email</small>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- APPEARANCE -->
+                <section class="settings-section">
+                    <h3>Appearance</h3>
+                    <div class="settings-row">
+                        <label><i class="fa-solid fa-moon"></i> Theme</label>
+                        <select id="setting-theme">
+                            <option value="dark">Dark</option>
+                            <option value="light">Light</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label><i class="fa-solid fa-language"></i> Language</label>
+                        <select id="setting-language">
+                            <option value="auto">Auto (Smart)</option>
+                            <option value="hinglish">Hinglish</option>
+                            <option value="hindi">हिंदी</option>
+                            <option value="english">English</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- VOICE -->
+                <section class="settings-section">
+                    <h3>Voice</h3>
+                    <div class="settings-row">
+                        <label><i class="fa-solid fa-volume-high"></i> Voice Replies</label>
+                        <label class="switch">
+                            <input type="checkbox" id="setting-voice-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label><i class="fa-solid fa-microphone"></i> Auto Send Voice</label>
+                        <label class="switch">
+                            <input type="checkbox" id="setting-autosend-voice" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </section>
+
+                <!-- DATA -->
+                <section class="settings-section">
+                    <h3>Data</h3>
+                    <button class="settings-danger-btn" id="settings-clear-history">
+                        <i class="fa-solid fa-trash"></i> Clear All Chat History
+                    </button>
+                    <button class="settings-danger-btn" id="settings-clear-memory">
+                        <i class="fa-solid fa-brain"></i> Clear Personal Memory
+                    </button>
+                </section>
+
+                <!-- ABOUT -->
+                <section class="settings-section">
+                    <h3>About</h3>
+                    <div class="about-block">
+                        <div class="about-logo">T</div>
+                        <div>
+                            <strong>Tanmay AI</strong>
+                            <small>Version 2.0</small>
+                            <small>Made by Tanmay Sahu</small>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LOGOUT -->
+                <section class="settings-section">
+                    <button class="settings-logout-btn" id="settings-logout-btn">
+                        <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                    </button>
+                </section>
+
+            </div>
+        </div>
     </div>
 
     <script type="module" src="script.js"></script>
