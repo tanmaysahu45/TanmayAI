@@ -39,35 +39,24 @@ const googleOAuthUrl =
     `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
 // =====================================================
-// PWA AUTO-UPDATE — 1 MINUTE
+// PWA AUTO-UPDATE
 // =====================================================
-let swRegistration = null;
 let isRefreshing = false;
 
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("./service-worker.js")
             .then(reg => {
-                swRegistration = reg;
+                setInterval(() => reg.update().catch(() => {}), 60000);
 
-                // Every 1 minute — check for update
-                setInterval(() => {
-                    reg.update().catch(() => {});
-                }, 60000);
-
-                // When user returns to tab — check immediately
                 document.addEventListener("visibilitychange", () => {
                     if (document.visibilityState === "visible") {
                         reg.update().catch(() => {});
                     }
                 });
 
-                // If a SW is already waiting — activate now
-                if (reg.waiting) {
-                    reg.waiting.postMessage("SKIP_WAITING");
-                }
+                if (reg.waiting) reg.waiting.postMessage("SKIP_WAITING");
 
-                // Listen for new SW install
                 reg.addEventListener("updatefound", () => {
                     const newSW = reg.installing;
                     if (!newSW) return;
@@ -78,9 +67,8 @@ if ("serviceWorker" in navigator) {
                     });
                 });
             })
-            .catch(err => console.log("SW registration failed:", err));
+            .catch(err => console.log("SW failed:", err));
 
-        // When new SW takes over — auto reload
         navigator.serviceWorker.addEventListener("controllerchange", () => {
             if (isRefreshing) return;
             isRefreshing = true;
@@ -102,6 +90,9 @@ const defaultUserIcon = document.getElementById("default-user-icon");
 const userInput = document.getElementById("user-input");
 const sendBtn = document.getElementById("send-btn");
 const micBtn = document.getElementById("mic-btn");
+const imageBtn = document.getElementById("image-btn");
+const imageInput = document.getElementById("image-input");
+const callBtn = document.getElementById("call-btn");
 const messagesContainer = document.getElementById("messages-container");
 const toggleVoiceBtn = document.getElementById("toggle-voice-btn");
 const historyList = document.getElementById("history-list");
@@ -115,6 +106,7 @@ const themeToggleBtn = document.getElementById("theme-toggle-btn");
 const chatSearchInput = document.getElementById("chat-search-input");
 const toastContainer = document.getElementById("toast-container");
 const headerMenuBtn = document.getElementById("header-menu-btn");
+const headerTitle = document.getElementById("header-title");
 
 const openSettingsBtn = document.getElementById("open-settings-btn");
 const closeSettingsBtn = document.getElementById("close-settings-btn");
@@ -135,6 +127,45 @@ const settingsInstallBtn = document.getElementById("settings-install-btn");
 const installSection = document.getElementById("install-section");
 const installHint = document.getElementById("install-hint");
 
+// Study
+const navChat = document.getElementById("nav-chat");
+const navStudy = document.getElementById("nav-study");
+const studyContainer = document.getElementById("study-container");
+const chatFooter = document.getElementById("chat-footer");
+const studyTabs = document.querySelectorAll(".study-tab");
+const studyPanels = {
+    notes: document.getElementById("study-panel-notes"),
+    quiz: document.getElementById("study-panel-quiz"),
+    formula: document.getElementById("study-panel-formula")
+};
+const noteTitleInput = document.getElementById("note-title-input");
+const noteContentInput = document.getElementById("note-content-input");
+const saveNoteBtn = document.getElementById("save-note-btn");
+const notesList = document.getElementById("notes-list");
+const quizTopicInput = document.getElementById("quiz-topic-input");
+const quizCountSelect = document.getElementById("quiz-count-select");
+const startQuizBtn = document.getElementById("start-quiz-btn");
+const quizDisplay = document.getElementById("quiz-display");
+const formulaTopicInput = document.getElementById("formula-topic-input");
+const formulaContentInput = document.getElementById("formula-content-input");
+const saveFormulaBtn = document.getElementById("save-formula-btn");
+const formulaList = document.getElementById("formula-list");
+
+// Image preview
+const imagePreviewOverlay = document.getElementById("image-preview-overlay");
+const imagePreviewImg = document.getElementById("image-preview-img");
+const ipCancel = document.getElementById("ip-cancel");
+const ipSend = document.getElementById("ip-send");
+const ipCaption = document.getElementById("ip-caption");
+
+// Call
+const callOverlay = document.getElementById("call-overlay");
+const callStatus = document.getElementById("call-status");
+const callSub = document.getElementById("call-sub");
+const callMicBtn = document.getElementById("call-mic-btn");
+const callEndBtn = document.getElementById("call-end-btn");
+const callWave = document.getElementById("call-wave");
+
 // =====================================================
 // STATE
 // =====================================================
@@ -152,11 +183,25 @@ let userPersonalMemoryCache = [];
 let openDropdown = null;
 let deferredInstallPrompt = null;
 
+// study
+let studyNotes = [];
+let studyFormulas = [];
+let currentView = "chat";
+
+// image
+let pendingImage = null;
+
+// call mode
+let callModeActive = false;
+let callRecognition = null;
+let callIsListening = false;
+let callHistoryContext = [];
+
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
 
 // =====================================================
-// INSTALL (PWA)
+// INSTALL PWA
 // =====================================================
 function isIOS() {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -204,7 +249,7 @@ function updateInstallUI() {
         installHint.style.display = "block";
         installHint.innerHTML = `
             <strong>iPhone / iPad pe install:</strong><br>
-            1. Neeche <b>Share</b> button dabao (square with arrow)<br>
+            1. Neeche <b>Share</b> button dabao<br>
             2. <b>Add to Home Screen</b> chuno<br>
             3. <b>Add</b> dabao
         `;
@@ -228,11 +273,7 @@ async function triggerInstall() {
     if (deferredInstallPrompt) {
         deferredInstallPrompt.prompt();
         const choice = await deferredInstallPrompt.userChoice;
-        if (choice.outcome === "accepted") {
-            showToast("Installing...", "success");
-        } else {
-            showToast("Install cancelled", "info");
-        }
+        showToast(choice.outcome === "accepted" ? "Installing..." : "Install cancelled", choice.outcome === "accepted" ? "success" : "info");
         deferredInstallPrompt = null;
         updateInstallUI();
     } else if (isIOS()) {
@@ -322,7 +363,7 @@ settingAutosendVoice.addEventListener("change", e => {
 });
 
 // =====================================================
-// TOAST
+// TOAST + TIME + SCROLL
 // =====================================================
 function showToast(message, type = "success") {
     const t = document.createElement("div");
@@ -403,7 +444,6 @@ async function copyToClipboard(text) {
         }
         showToast("Copied!", "success");
     } catch (e) {
-        console.error("Copy error:", e);
         showToast("Copy failed", "error");
     }
 }
@@ -422,14 +462,13 @@ async function shareMessage(text) {
 
 async function shareApp() {
     const url = window.location.origin + window.location.pathname;
-    const shareData = {
-        title: "Tanmay AI",
-        text: "Dekh, ye Tanmay AI hai — ek personal AI assistant!",
-        url: url
-    };
     if (navigator.share) {
         try {
-            await navigator.share(shareData);
+            await navigator.share({
+                title: "Tanmay AI",
+                text: "Dekh, ye Tanmay AI hai — ek personal AI assistant!",
+                url: url
+            });
         } catch (e) {
             if (e.name !== "AbortError") await copyToClipboard(url);
         }
@@ -513,6 +552,7 @@ headerMenuBtn.addEventListener("click", e => {
     }
 
     items.push(
+        { label: "Voice Call Mode", icon: "fa-phone", action: () => startCallMode() },
         { label: "Share App", icon: "fa-share-nodes", action: () => shareApp() },
         { label: "Settings", icon: "fa-gear", action: () => { closeSidebar(); openSettings(); } },
         { label: "New Chat", icon: "fa-plus", action: () => startNewChatSession() }
@@ -603,6 +643,7 @@ onAuthStateChanged(auth, async user => {
         }
 
         await loadAllMemories();
+        await loadStudyData();
         await loadAllSidebarTopics(true);
 
         loginContainer.classList.add("hidden");
@@ -644,7 +685,7 @@ settingsLogoutBtn.addEventListener("click", () => {
 });
 
 // =====================================================
-// SETTINGS
+// SETTINGS PANEL
 // =====================================================
 function openSettings() {
     settingsOverlay.classList.remove("hidden");
@@ -666,7 +707,7 @@ settingsOverlay.addEventListener("click", e => {
 
 settingsClearHistory.addEventListener("click", async () => {
     if (!currentUser) return;
-    if (!confirm("Clear ALL chat history? Ye wapas nahi aayega.")) return;
+    if (!confirm("Clear ALL chat history?")) return;
 
     try {
         const q = query(collection(db, "chat_messages"));
@@ -682,14 +723,13 @@ settingsClearHistory.addEventListener("click", async () => {
         closeSettings();
         showToast("History cleared", "success");
     } catch (e) {
-        console.error(e);
         showToast("Clear failed", "error");
     }
 });
 
 settingsClearMemory.addEventListener("click", async () => {
     if (!currentUser) return;
-    if (!confirm("Clear your personal memory? AI sab bhool jayega.")) return;
+    if (!confirm("Clear your personal memory?")) return;
 
     try {
         const q = query(collection(db, `users_memory/${currentUser.uid}/memories`));
@@ -700,7 +740,6 @@ settingsClearMemory.addEventListener("click", async () => {
         userPersonalMemoryCache = [];
         showToast("Personal memory cleared", "success");
     } catch (e) {
-        console.error(e);
         showToast("Clear failed", "error");
     }
 });
@@ -734,6 +773,637 @@ chatSearchInput.addEventListener("input", e => {
         el.style.display = !term || text.includes(term) ? "flex" : "none";
     });
 });
+
+// =====================================================
+// VIEW SWITCH (Chat / Study)
+// =====================================================
+function switchView(view) {
+    currentView = view;
+
+    document.querySelectorAll(".sidebar-nav-btn").forEach(b => b.classList.remove("active"));
+    if (view === "chat") navChat.classList.add("active");
+    else navStudy.classList.add("active");
+
+    if (view === "chat") {
+        messagesContainer.classList.remove("hidden");
+        chatFooter.classList.remove("hidden");
+        studyContainer.classList.add("hidden");
+        headerTitle.innerText = "Tanmay AI";
+    } else {
+        messagesContainer.classList.add("hidden");
+        chatFooter.classList.add("hidden");
+        studyContainer.classList.remove("hidden");
+        headerTitle.innerText = "Study Mode";
+        renderNotes();
+        renderFormulas();
+    }
+
+    if (window.innerWidth <= 768) closeSidebar();
+}
+
+navChat.addEventListener("click", () => switchView("chat"));
+navStudy.addEventListener("click", () => switchView("study"));
+
+// =====================================================
+// STUDY TABS
+// =====================================================
+studyTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+        const t = tab.dataset.tab;
+        studyTabs.forEach(x => x.classList.remove("active"));
+        tab.classList.add("active");
+
+        Object.keys(studyPanels).forEach(k => {
+            studyPanels[k].classList.toggle("active", k === t);
+        });
+    });
+});
+
+// =====================================================
+// STUDY DATA (Firebase + localStorage)
+// =====================================================
+function studyKey() {
+    return currentUser ? `study_${currentUser.uid}` : "study_guest";
+}
+
+function loadStudyFromLocal() {
+    try {
+        const raw = localStorage.getItem(studyKey());
+        if (raw) {
+            const data = JSON.parse(raw);
+            studyNotes = Array.isArray(data.notes) ? data.notes : [];
+            studyFormulas = Array.isArray(data.formulas) ? data.formulas : [];
+        }
+    } catch (e) {
+        studyNotes = [];
+        studyFormulas = [];
+    }
+}
+
+function saveStudyToLocal() {
+    try {
+        localStorage.setItem(studyKey(), JSON.stringify({
+            notes: studyNotes,
+            formulas: studyFormulas
+        }));
+    } catch (e) {
+        console.error("Study save failed", e);
+    }
+}
+
+async function loadStudyData() {
+    loadStudyFromLocal();
+    renderNotes();
+    renderFormulas();
+}
+
+function renderNotes() {
+    if (!notesList) return;
+    notesList.innerHTML = "";
+    if (!studyNotes.length) {
+        notesList.innerHTML = `<div class="study-empty">Abhi koi note nahi. Upar se add karo.</div>`;
+        return;
+    }
+    studyNotes.forEach((n, i) => {
+        const card = document.createElement("div");
+        card.className = "study-card";
+        card.innerHTML = `
+            <div class="study-card-title">${escapeHtml(n.title)}</div>
+            <div class="study-card-body">${escapeHtml(n.content)}</div>
+            <button class="study-card-delete" data-i="${i}"><i class="fa-solid fa-trash"></i></button>
+        `;
+        card.querySelector(".study-card-delete").onclick = () => {
+            studyNotes.splice(i, 1);
+            saveStudyToLocal();
+            renderNotes();
+            showToast("Note deleted", "success");
+        };
+        notesList.appendChild(card);
+    });
+}
+
+function renderFormulas() {
+    if (!formulaList) return;
+    formulaList.innerHTML = "";
+    if (!studyFormulas.length) {
+        formulaList.innerHTML = `<div class="study-empty">Abhi koi formula nahi.</div>`;
+        return;
+    }
+    studyFormulas.forEach((f, i) => {
+        const card = document.createElement("div");
+        card.className = "study-card";
+        card.innerHTML = `
+            <div class="study-card-title">${escapeHtml(f.topic)}</div>
+            <div class="study-card-body">${escapeHtml(f.content)}</div>
+            <button class="study-card-delete" data-i="${i}"><i class="fa-solid fa-trash"></i></button>
+        `;
+        card.querySelector(".study-card-delete").onclick = () => {
+            studyFormulas.splice(i, 1);
+            saveStudyToLocal();
+            renderFormulas();
+            showToast("Formula deleted", "success");
+        };
+        formulaList.appendChild(card);
+    });
+}
+
+function escapeHtml(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+saveNoteBtn.addEventListener("click", () => {
+    const title = noteTitleInput.value.trim();
+    const content = noteContentInput.value.trim();
+    if (!title || !content) {
+        showToast("Title aur content dono likho", "error");
+        return;
+    }
+    studyNotes.unshift({ title, content, ts: Date.now() });
+    saveStudyToLocal();
+    noteTitleInput.value = "";
+    noteContentInput.value = "";
+    renderNotes();
+    showToast("Note added", "success");
+});
+
+saveFormulaBtn.addEventListener("click", () => {
+    const topic = formulaTopicInput.value.trim();
+    const content = formulaContentInput.value.trim();
+    if (!topic || !content) {
+        showToast("Dono likho", "error");
+        return;
+    }
+    studyFormulas.unshift({ topic, content, ts: Date.now() });
+    saveStudyToLocal();
+    formulaTopicInput.value = "";
+    formulaContentInput.value = "";
+    renderFormulas();
+    showToast("Formula added", "success");
+});
+
+// =====================================================
+// QUIZ
+// =====================================================
+startQuizBtn.addEventListener("click", async () => {
+    const topic = quizTopicInput.value.trim();
+    if (!topic) {
+        showToast("Topic likho pehle", "error");
+        return;
+    }
+    const count = quizCountSelect.value;
+
+    quizDisplay.classList.remove("hidden");
+    quizDisplay.innerHTML = `
+        <div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+        <div style="text-align:center;color:var(--text-muted);font-size:13px;">Quiz ban raha hai...</div>
+    `;
+
+    try {
+        const response = await fetch(
+            "https://tanmayai-11j5.onrender.com/api/quiz",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    topic,
+                    count,
+                    userName: currentUser.displayName || "User",
+                    userEmail: currentUser.email || ""
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.ok && data.reply) {
+            renderQuiz(data.reply);
+        } else {
+            quizDisplay.innerHTML = `<div class="study-empty">Quiz nahi ban paya. Thodi der baad try karo.</div>`;
+        }
+    } catch (e) {
+        quizDisplay.innerHTML = `<div class="study-empty">Network problem. Try again.</div>`;
+    }
+});
+
+function renderQuiz(rawText) {
+    // Parse: Q1. question\nA) opt\nB) opt\nC) opt\nD) opt\nAnswer: X
+    const blocks = rawText.split(/\n(?=Q\d+[\.\)])/i);
+    const quizData = [];
+
+    blocks.forEach(block => {
+        const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
+        if (!lines.length) return;
+
+        const qLine = lines[0];
+        const qMatch = qLine.match(/Q\d+[\.\)]\s*(.+)/i);
+        if (!qMatch) return;
+        const question = qMatch[1].trim();
+
+        const options = [];
+        let answer = null;
+
+        lines.slice(1).forEach(l => {
+            const optMatch = l.match(/^([A-D])[\.\)]\s*(.+)/i);
+            if (optMatch) {
+                options.push({ letter: optMatch[1].toUpperCase(), text: optMatch[2].trim() });
+            }
+            const ansMatch = l.match(/^Answer\s*[:\-]\s*([A-D])/i);
+            if (ansMatch) {
+                answer = ansMatch[1].toUpperCase();
+            }
+        });
+
+        if (question && options.length >= 2 && answer) {
+            quizData.push({ question, options, answer });
+        }
+    });
+
+    if (!quizData.length) {
+        quizDisplay.innerHTML = `<div class="study-empty">Quiz format galat aaya. Dobara try karo.</div>`;
+        return;
+    }
+
+    quizDisplay.innerHTML = "";
+    let score = 0;
+    let answered = 0;
+
+    quizData.forEach((q, idx) => {
+        const qDiv = document.createElement("div");
+        qDiv.className = "quiz-question";
+
+        const qText = document.createElement("div");
+        qText.className = "quiz-q-text";
+        qText.innerText = `Q${idx + 1}. ${q.question}`;
+        qDiv.appendChild(qText);
+
+        const optWrap = document.createElement("div");
+        optWrap.className = "quiz-options";
+
+        q.options.forEach(opt => {
+            const btn = document.createElement("div");
+            btn.className = "quiz-option";
+            btn.innerText = `${opt.letter}) ${opt.text}`;
+            btn.onclick = () => {
+                if (btn.classList.contains("disabled")) return;
+
+                // disable all
+                optWrap.querySelectorAll(".quiz-option").forEach(x => x.classList.add("disabled"));
+
+                if (opt.letter === q.answer) {
+                    btn.classList.add("correct");
+                    score++;
+                } else {
+                    btn.classList.add("wrong");
+                    // highlight correct
+                    optWrap.querySelectorAll(".quiz-option").forEach(x => {
+                        if (x.innerText.startsWith(q.answer + ")")) {
+                            x.classList.add("correct");
+                        }
+                    });
+                }
+
+                answered++;
+
+                if (answered === quizData.length) {
+                    const sc = document.createElement("div");
+                    sc.className = "quiz-score";
+                    sc.innerText = `Score: ${score} / ${quizData.length}`;
+                    quizDisplay.appendChild(sc);
+                }
+            };
+            optWrap.appendChild(btn);
+        });
+
+        qDiv.appendChild(optWrap);
+        quizDisplay.appendChild(qDiv);
+    });
+}
+
+// =====================================================
+// IMAGE UPLOAD
+// =====================================================
+imageBtn.addEventListener("click", () => imageInput.click());
+
+imageInput.addEventListener("change", e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+        showToast("Sirf image bhej sakte ho", "error");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+        pendingImage = {
+            dataUrl: ev.target.result,
+            mime: file.type
+        };
+        imagePreviewImg.src = ev.target.result;
+        ipCaption.value = "";
+        imagePreviewOverlay.classList.remove("hidden");
+    };
+    reader.readAsDataURL(file);
+
+    e.target.value = "";
+});
+
+ipCancel.addEventListener("click", () => {
+    pendingImage = null;
+    imagePreviewOverlay.classList.add("hidden");
+});
+
+ipSend.addEventListener("click", async () => {
+    if (!pendingImage) return;
+    const caption = ipCaption.value.trim();
+    imagePreviewOverlay.classList.add("hidden");
+
+    await sendImageMessage(pendingImage.dataUrl, pendingImage.mime, caption);
+    pendingImage = null;
+});
+
+async function sendImageMessage(dataUrl, mime, caption) {
+    if (!currentUser) return;
+    if (!currentChatId) {
+        currentChatId = "chat_" + Date.now();
+        sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
+    }
+
+    const welcomeBlock = messagesContainer.querySelector(".welcome-block");
+    if (welcomeBlock) welcomeBlock.remove();
+
+    // Show user message with image
+    appendUserImageMessage(dataUrl, caption);
+
+    const userText = caption || "[Image]";
+    chatHistoryContext.push({ role: "user", content: userText });
+
+    // Typing
+    const loadingRow = document.createElement("div");
+    loadingRow.classList.add("message-row", "ai-row");
+    const loadingBubble = document.createElement("div");
+    loadingBubble.classList.add("message", "ai-message", "typing-message");
+    loadingBubble.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+    loadingRow.appendChild(loadingBubble);
+    messagesContainer.appendChild(loadingRow);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    try {
+        const response = await fetch(
+            "https://tanmayai-11j5.onrender.com/api/vision",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userText: caption,
+                    imageBase64: dataUrl,
+                    imageMime: mime,
+                    userName: currentUser.displayName || "User",
+                    userEmail: currentUser.email || "",
+                    personalMemory: userPersonalMemoryCache
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (messagesContainer.contains(loadingRow)) messagesContainer.removeChild(loadingRow);
+
+        if (response.ok && data.reply) {
+            chatHistoryContext.push({ role: "assistant", content: data.reply });
+            appendAIMessage(data.reply, true, userText);
+
+            if (isCurrentUserAdmin() && data.showModel && data.provider && data.model) {
+                const modelInfo = document.createElement("div");
+                modelInfo.className = "admin-model-info";
+                modelInfo.innerText = "🤖 " + data.provider + " • " + data.model;
+                messagesContainer.appendChild(modelInfo);
+            }
+
+            await saveMessageToFirebase(currentChatId, userText, data.reply);
+        } else {
+            appendAIMessage(
+                (data && data.reply) || "Image samajh nahi paaya. Dobara try karo.",
+                true,
+                userText
+            );
+        }
+    } catch (e) {
+        if (messagesContainer.contains(loadingRow)) messagesContainer.removeChild(loadingRow);
+        appendAIMessage("Image bhejne mein problem aayi. Network check karo.", true, userText);
+        showToast("Image send failed", "error");
+    }
+}
+
+function appendUserImageMessage(dataUrl, caption) {
+    const row = document.createElement("div");
+    row.classList.add("message-row", "user-row");
+
+    const bubble = document.createElement("div");
+    bubble.classList.add("message", "user-message");
+
+    const img = document.createElement("img");
+    img.src = dataUrl;
+    img.className = "message-image";
+    bubble.appendChild(img);
+
+    if (caption) {
+        const t = document.createElement("div");
+        t.className = "message-text";
+        t.innerText = caption;
+        bubble.appendChild(t);
+    }
+
+    const timeNode = document.createElement("div");
+    timeNode.classList.add("msg-time");
+    timeNode.innerText = formatTime(Date.now());
+    bubble.appendChild(timeNode);
+
+    row.appendChild(bubble);
+    messagesContainer.appendChild(row);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// =====================================================
+// VOICE CALL MODE
+// =====================================================
+const CALL_AI_VOICE_LANG = "en-US";
+
+function startCallMode() {
+    if (!currentUser) {
+        showToast("Pehle login karo", "error");
+        return;
+    }
+
+    callModeActive = true;
+    callHistoryContext = [];
+    callOverlay.classList.remove("hidden");
+    callStatus.innerText = "Starting...";
+    callSub.innerText = "Voice Call Mode";
+    callWave.classList.add("idle");
+    callMicBtn.classList.remove("active");
+    callIsListening = false;
+
+    setTimeout(() => {
+        callStatus.innerText = "Tap mic to speak";
+    }, 600);
+}
+
+function endCallMode() {
+    callModeActive = false;
+    callIsListening = false;
+    window.speechSynthesis.cancel();
+
+    try {
+        if (callRecognition) callRecognition.stop();
+    } catch (e) {}
+
+    callOverlay.classList.add("hidden");
+    callWave.classList.add("idle");
+    callMicBtn.classList.remove("active");
+    callStatus.innerText = "Tap mic to start";
+}
+
+callEndBtn.addEventListener("click", endCallMode);
+callBtn.addEventListener("click", startCallMode);
+
+// Setup call recognition
+if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    callRecognition = new SR();
+    callRecognition.continuous = false;
+    callRecognition.lang = "en-US";
+    callRecognition.interimResults = false;
+
+    callRecognition.onresult = async event => {
+        const transcript = event.results[0][0].transcript;
+        if (!transcript || !transcript.trim()) return;
+        await handleCallUserSpeech(transcript.trim());
+    };
+
+    callRecognition.onend = () => {
+        callIsListening = false;
+        callMicBtn.classList.remove("active");
+        callWave.classList.add("idle");
+        if (callModeActive) {
+            callStatus.innerText = "Tap mic to speak";
+        }
+    };
+
+    callRecognition.onerror = () => {
+        callIsListening = false;
+        callMicBtn.classList.remove("active");
+        callWave.classList.add("idle");
+        if (callModeActive) callStatus.innerText = "Mic error — try again";
+    };
+}
+
+callMicBtn.addEventListener("click", () => {
+    if (!callModeActive) return;
+
+    if (callIsListening) {
+        // stop
+        try { callRecognition.stop(); } catch (e) {}
+        callIsListening = false;
+        callMicBtn.classList.remove("active");
+        callWave.classList.add("idle");
+        callStatus.innerText = "Stopped";
+        return;
+    }
+
+    // start
+    if (!callRecognition) {
+        showToast("Mic support nahi hai", "error");
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    try {
+        callRecognition.start();
+        callIsListening = true;
+        callMicBtn.classList.add("active");
+        callWave.classList.remove("idle");
+        callStatus.innerText = "Listening...";
+    } catch (e) {
+        console.log(e);
+    }
+});
+
+async function handleCallUserSpeech(userText) {
+    callStatus.innerText = "Thinking...";
+    callWave.classList.add("idle");
+    callMicBtn.classList.remove("active");
+
+    callHistoryContext.push({ role: "user", content: userText });
+
+    const userEmail = currentUser.email || "";
+    const userName = currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
+
+    try {
+        const response = await fetch(
+            "https://tanmayai-11j5.onrender.com/api/chat",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    messages: callHistoryContext.slice(-6),
+                    userName,
+                    userEmail,
+                    globalRules: globalRulesCache,
+                    personalMemory: userPersonalMemoryCache
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (response.ok && data.reply) {
+            callHistoryContext.push({ role: "assistant", content: data.reply });
+            speakCallReply(data.reply);
+        } else {
+            callStatus.innerText = "No response";
+        }
+    } catch (e) {
+        callStatus.innerText = "Network error";
+    }
+}
+
+function speakCallReply(text) {
+    if (!("speechSynthesis" in window)) {
+        callStatus.innerText = "Tap mic to speak";
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = CALL_AI_VOICE_LANG;
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
+
+    callStatus.innerText = "Speaking...";
+    callWave.classList.remove("idle");
+
+    utter.onend = () => {
+        callWave.classList.add("idle");
+        if (callModeActive) {
+            callStatus.innerText = "Tap mic to speak";
+        }
+    };
+
+    utter.onerror = () => {
+        callWave.classList.add("idle");
+        if (callModeActive) callStatus.innerText = "Tap mic to speak";
+    };
+
+    window.speechSynthesis.speak(utter);
+}
 
 // =====================================================
 // CHIPS
@@ -815,13 +1485,14 @@ function startNewChatSession() {
 }
 
 newChatBtn.addEventListener("click", () => {
+    switchView("chat");
     startNewChatSession();
     if (window.innerWidth <= 768) closeSidebar();
     userInput.focus();
 });
 
 // =====================================================
-// VOICE
+// VOICE (normal chat)
 // =====================================================
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -898,7 +1569,7 @@ function resetSpeakingButtons() {
 }
 
 // =====================================================
-// MESSAGES
+// MESSAGE BUILDER
 // =====================================================
 function buildMessageRow(text, isUser, timestamp) {
     if (!timestamp) timestamp = Date.now();
@@ -1038,6 +1709,8 @@ async function sendMessage() {
         return;
     }
 
+    if (currentView !== "chat") switchView("chat");
+
     if (!currentChatId) {
         currentChatId = "chat_" + Date.now();
         sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
@@ -1075,11 +1748,7 @@ async function sendMessage() {
     loadingRow.classList.add("message-row", "ai-row");
     const loadingBubble = document.createElement("div");
     loadingBubble.classList.add("message", "ai-message", "typing-message");
-    loadingBubble.innerHTML = `
-        <div class="typing-dots">
-            <span></span><span></span><span></span>
-        </div>
-    `;
+    loadingBubble.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
     loadingRow.appendChild(loadingBubble);
     messagesContainer.appendChild(loadingRow);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -1103,9 +1772,7 @@ async function sendMessage() {
 
         const data = await response.json();
 
-        if (messagesContainer.contains(loadingRow)) {
-            messagesContainer.removeChild(loadingRow);
-        }
+        if (messagesContainer.contains(loadingRow)) messagesContainer.removeChild(loadingRow);
 
         if (response.ok && data.reply) {
             const aiResponse = data.reply;
@@ -1130,12 +1797,7 @@ async function sendMessage() {
             );
         }
     } catch (error) {
-        console.error("Tanmay AI Error:", error);
-
-        if (messagesContainer.contains(loadingRow)) {
-            messagesContainer.removeChild(loadingRow);
-        }
-
+        if (messagesContainer.contains(loadingRow)) messagesContainer.removeChild(loadingRow);
         appendAIMessage(
             "Bhai, abhi server se connection nahi ho pa raha. Thodi der baad try karo.",
             true,
@@ -1263,6 +1925,7 @@ function addTopicToSidebarUI(firstQuestion, chatId) {
             el.classList.remove("active-chat-topic");
         });
         wrapper.classList.add("active-chat-topic");
+        switchView("chat");
         loadFullChatSession(chatId);
         if (window.innerWidth <= 768) closeSidebar();
     };
@@ -1333,12 +1996,20 @@ async function loadFullChatSession(chatId) {
 document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
+        switchView("chat");
         startNewChatSession();
         showToast("New chat", "info");
     }
     if (e.key === "Escape") {
-        if (openDropdown) closeDropdown();
-        else if (!settingsOverlay.classList.contains("hidden")) closeSettings();
-        else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) closeSidebar();
+        if (callModeActive) endCallMode();
+        else if (openDropdown) closeDropdown();
+        else if (!imagePreviewOverlay.classList.contains("hidden")) {
+            pendingImage = null;
+            imagePreviewOverlay.classList.add("hidden");
+        } else if (!settingsOverlay.classList.contains("hidden")) {
+            closeSettings();
+        } else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) {
+            closeSidebar();
+        }
     }
 });

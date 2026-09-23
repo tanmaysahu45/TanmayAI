@@ -58,6 +58,17 @@
                     </button>
                 </div>
 
+                <div class="sidebar-nav">
+                    <button class="sidebar-nav-btn active" data-view="chat" id="nav-chat">
+                        <i class="fa-solid fa-comments"></i>
+                        <span>Chat</span>
+                    </button>
+                    <button class="sidebar-nav-btn" data-view="study" id="nav-study">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                        <span>Study</span>
+                    </button>
+                </div>
+
                 <div class="search-box">
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="text" id="chat-search-input" placeholder="Search chats...">
@@ -94,7 +105,7 @@
                     </button>
                     <div class="brand">
                         <div class="brand-logo">T</div>
-                        <h2>Tanmay AI</h2>
+                        <h2 id="header-title">Tanmay AI</h2>
                     </div>
                 </div>
                 <div class="header-right">
@@ -110,14 +121,74 @@
                 </div>
             </header>
 
+            <!-- CHAT VIEW -->
             <div class="messages-container" id="messages-container"></div>
 
-            <footer class="chat-footer">
+            <!-- STUDY VIEW -->
+            <div class="study-container hidden" id="study-container">
+                <div class="study-tabs">
+                    <button class="study-tab active" data-tab="notes">
+                        <i class="fa-solid fa-note-sticky"></i> Notes
+                    </button>
+                    <button class="study-tab" data-tab="quiz">
+                        <i class="fa-solid fa-circle-question"></i> Quiz
+                    </button>
+                    <button class="study-tab" data-tab="formula">
+                        <i class="fa-solid fa-square-root-variable"></i> Formula
+                    </button>
+                </div>
+
+                <!-- NOTES TAB -->
+                <div class="study-panel active" id="study-panel-notes">
+                    <div class="study-notes-input">
+                        <input type="text" id="note-title-input" placeholder="Title (jaise: Photosynthesis)">
+                        <textarea id="note-content-input" placeholder="Notes likho..." rows="4"></textarea>
+                        <button id="save-note-btn"><i class="fa-solid fa-plus"></i> Add Note</button>
+                    </div>
+                    <div class="study-list" id="notes-list"></div>
+                </div>
+
+                <!-- QUIZ TAB -->
+                <div class="study-panel" id="study-panel-quiz">
+                    <div class="quiz-setup">
+                        <input type="text" id="quiz-topic-input" placeholder="Topic likho (jaise: Solar System)">
+                        <div class="quiz-count-row">
+                            <label>Sawaal:</label>
+                            <select id="quiz-count-select">
+                                <option value="3">3</option>
+                                <option value="5" selected>5</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                        <button id="start-quiz-btn"><i class="fa-solid fa-play"></i> Quiz Shuru Karo</button>
+                    </div>
+                    <div class="quiz-display hidden" id="quiz-display"></div>
+                </div>
+
+                <!-- FORMULA TAB -->
+                <div class="study-panel" id="study-panel-formula">
+                    <div class="formula-input">
+                        <input type="text" id="formula-topic-input" placeholder="Formula ka naam (jaise: Area of Circle)">
+                        <input type="text" id="formula-content-input" placeholder="Formula (jaise: πr²)">
+                        <button id="save-formula-btn"><i class="fa-solid fa-plus"></i> Add</button>
+                    </div>
+                    <div class="study-list" id="formula-list"></div>
+                </div>
+            </div>
+
+            <footer class="chat-footer" id="chat-footer">
                 <div class="input-wrapper">
+                    <button id="image-btn" title="Photo bhejo">
+                        <i class="fa-solid fa-image"></i>
+                    </button>
+                    <input type="file" id="image-input" accept="image/*" hidden>
                     <button id="mic-btn" title="Speak">
                         <i class="fa-solid fa-microphone"></i>
                     </button>
                     <input type="text" id="user-input" placeholder="Ask Tanmay AI..." autocomplete="off">
+                    <button id="call-btn" title="Voice Call">
+                        <i class="fa-solid fa-phone"></i>
+                    </button>
                     <button id="send-btn" title="Send">
                         <i class="fa-solid fa-paper-plane"></i>
                     </button>
@@ -125,6 +196,46 @@
                 <div class="footer-credit">Made by Tanmay Sahu</div>
             </footer>
         </main>
+    </div>
+
+    <!-- IMAGE PREVIEW MODAL -->
+    <div class="image-preview-overlay hidden" id="image-preview-overlay">
+        <div class="image-preview-box">
+            <img id="image-preview-img" src="" alt="preview">
+            <div class="image-preview-actions">
+                <button class="ip-cancel" id="ip-cancel"><i class="fa-solid fa-xmark"></i> Cancel</button>
+                <button class="ip-send" id="ip-send"><i class="fa-solid fa-paper-plane"></i> Send</button>
+            </div>
+            <input type="text" id="ip-caption" placeholder="Kuch likhna hai? (optional)">
+        </div>
+    </div>
+
+    <!-- VOICE CALL MODE -->
+    <div class="call-overlay hidden" id="call-overlay">
+        <div class="call-screen">
+            <div class="call-status" id="call-status">Tap mic to start</div>
+
+            <div class="call-avatar" id="call-avatar">
+                <div class="call-avatar-inner">T</div>
+                <div class="call-ring" id="call-ring"></div>
+            </div>
+
+            <div class="call-name">Tanmay AI</div>
+            <div class="call-sub" id="call-sub">Voice Call Mode</div>
+
+            <div class="call-wave" id="call-wave">
+                <span></span><span></span><span></span><span></span><span></span>
+            </div>
+
+            <div class="call-controls">
+                <button class="call-btn-mute" id="call-mic-btn">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+                <button class="call-btn-end" id="call-end-btn">
+                    <i class="fa-solid fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- SETTINGS MODAL -->
@@ -217,7 +328,7 @@
                         <div class="about-logo">T</div>
                         <div>
                             <strong>Tanmay AI</strong>
-                            <small>Version 2.2</small>
+                            <small>Version 3.0</small>
                             <small>Made by Tanmay Sahu</small>
                         </div>
                     </div>
