@@ -1,57 +1,3 @@
-// =====================================================
-// AUTO UPDATE — PWA (khud hi update hota rahega)
-// =====================================================
-let swRegistration = null;
-let isRefreshing = false;
-
-if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./service-worker.js")
-            .then(reg => {
-                swRegistration = reg;
-
-                // Har 60 second mein update check
-                setInterval(() => {
-                    reg.update().catch(() => {});
-                }, 60000);
-
-                // Jab user tab pe wapas aaye, turant check
-                document.addEventListener("visibilitychange", () => {
-                    if (document.visibilityState === "visible") {
-                        reg.update().catch(() => {});
-                    }
-                });
-
-                // Agar already waiting SW hai, activate karo
-                if (reg.waiting) {
-                    reg.waiting.postMessage("SKIP_WAITING");
-                }
-
-                // Naya SW aaye to activate karo
-                reg.addEventListener("updatefound", () => {
-                    const newSW = reg.installing;
-                    if (!newSW) return;
-                    newSW.addEventListener("statechange", () => {
-                        if (
-                            newSW.state === "installed" &&
-                            navigator.serviceWorker.controller
-                        ) {
-                            newSW.postMessage("SKIP_WAITING");
-                        }
-                    });
-                });
-            })
-            .catch(err => console.log("SW registration failed:", err));
-
-        // Jab naya SW control le → page auto reload
-        navigator.serviceWorker.addEventListener("controllerchange", () => {
-            if (isRefreshing) return;
-            isRefreshing = true;
-            window.location.reload();
-        });
-    });
-}
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import {
     getAuth,
@@ -92,7 +38,60 @@ const CHAT_SESSION_KEY = "tanmay_active_chat";
 const googleOAuthUrl =
     `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
+// =====================================================
+// PWA AUTO-UPDATE — 1 MINUTE
+// =====================================================
+let swRegistration = null;
+let isRefreshing = false;
+
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js")
+            .then(reg => {
+                swRegistration = reg;
+
+                // Every 1 minute — check for update
+                setInterval(() => {
+                    reg.update().catch(() => {});
+                }, 60000);
+
+                // When user returns to tab — check immediately
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") {
+                        reg.update().catch(() => {});
+                    }
+                });
+
+                // If a SW is already waiting — activate now
+                if (reg.waiting) {
+                    reg.waiting.postMessage("SKIP_WAITING");
+                }
+
+                // Listen for new SW install
+                reg.addEventListener("updatefound", () => {
+                    const newSW = reg.installing;
+                    if (!newSW) return;
+                    newSW.addEventListener("statechange", () => {
+                        if (newSW.state === "installed" && navigator.serviceWorker.controller) {
+                            newSW.postMessage("SKIP_WAITING");
+                        }
+                    });
+                });
+            })
+            .catch(err => console.log("SW registration failed:", err));
+
+        // When new SW takes over — auto reload
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            window.location.reload();
+        });
+    });
+}
+
+// =====================================================
 // ELEMENTS
+// =====================================================
 const loginContainer = document.getElementById("login-container");
 const appContainer = document.getElementById("app-container");
 const googleLoginBtn = document.getElementById("google-login-btn");
@@ -136,7 +135,9 @@ const settingsInstallBtn = document.getElementById("settings-install-btn");
 const installSection = document.getElementById("install-section");
 const installHint = document.getElementById("install-hint");
 
+// =====================================================
 // STATE
+// =====================================================
 let isVoiceEnabled = true;
 let autoSendVoice = true;
 let currentLanguage = "auto";
@@ -155,16 +156,8 @@ loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
 
 // =====================================================
-// PWA — SERVICE WORKER + INSTALL
+// INSTALL (PWA)
 // =====================================================
-if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./service-worker.js").catch(err => {
-            console.log("SW registration failed:", err);
-        });
-    });
-}
-
 function isIOS() {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 }
@@ -176,7 +169,6 @@ function isStandalone() {
     );
 }
 
-// Capture install prompt
 window.addEventListener("beforeinstallprompt", e => {
     e.preventDefault();
     deferredInstallPrompt = e;
@@ -211,7 +203,7 @@ function updateInstallUI() {
         settingsInstallBtn.style.display = "none";
         installHint.style.display = "block";
         installHint.innerHTML = `
-            <strong>iPhone / iPad pe install karne ke liye:</strong><br>
+            <strong>iPhone / iPad pe install:</strong><br>
             1. Neeche <b>Share</b> button dabao (square with arrow)<br>
             2. <b>Add to Home Screen</b> chuno<br>
             3. <b>Add</b> dabao
@@ -246,109 +238,11 @@ async function triggerInstall() {
     } else if (isIOS()) {
         showToast("Safari Share button se add karo", "info");
     } else {
-        showToast("Browser menu se install karo", "info");
+        showToast("Browser menu (⋮) se 'Install App' chuno", "info");
     }
 }
 
 settingsInstallBtn.addEventListener("click", triggerInstall);
-
-// =====================================================
-// HEADER MENU (3-DOT)
-// =====================================================
-function closeHeaderDropdown() {
-    if (openDropdown && openDropdown.classList.contains("header-dropdown")) {
-        openDropdown.remove();
-        openDropdown = null;
-    }
-}
-
-headerMenuBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    closeDropdown();
-    closeHeaderDropdown();
-
-    const dd = document.createElement("div");
-    dd.className = "header-dropdown";
-
-    const items = [];
-
-    if (!isStandalone()) {
-        items.push({
-            label: "Install App",
-            icon: "fa-download",
-            action: () => triggerInstall()
-        });
-    }
-
-    items.push(
-        {
-            label: "Share App",
-            icon: "fa-share-nodes",
-            action: () => shareApp()
-        },
-        {
-            label: "Settings",
-            icon: "fa-gear",
-            action: () => {
-                closeSidebar();
-                openSettings();
-            }
-        },
-        {
-            label: "New Chat",
-            icon: "fa-plus",
-            action: () => startNewChatSession()
-        }
-    );
-
-    items.forEach(item => {
-        const b = document.createElement("button");
-        b.className = "header-dropdown-item";
-        b.innerHTML = `<i class="fa-solid ${item.icon}"></i> ${item.label}`;
-        b.onclick = ev => {
-            ev.stopPropagation();
-            closeHeaderDropdown();
-            item.action();
-        };
-        dd.appendChild(b);
-    });
-
-    document.body.appendChild(dd);
-
-    const rect = headerMenuBtn.getBoundingClientRect();
-    const menuWidth = 210;
-    let left = rect.right - menuWidth;
-    let top = rect.bottom + 6;
-
-    if (left < 10) left = 10;
-    if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
-
-    dd.style.left = left + "px";
-    dd.style.top = top + "px";
-
-    openDropdown = dd;
-});
-
-async function shareApp() {
-    const url = window.location.origin + window.location.pathname;
-    const shareData = {
-        title: "Tanmay AI",
-        text: "Dekh, ye Tanmay AI hai — ek personal AI assistant!",
-        url: url
-    };
-
-    if (navigator.share) {
-        try {
-            await navigator.share(shareData);
-        } catch (e) {
-            if (e.name !== "AbortError") {
-                await copyToClipboard(url);
-            }
-        }
-    } else {
-        await copyToClipboard(url);
-    }
-}
 
 // =====================================================
 // SETTINGS STORAGE
@@ -526,11 +420,29 @@ async function shareMessage(text) {
     }
 }
 
+async function shareApp() {
+    const url = window.location.origin + window.location.pathname;
+    const shareData = {
+        title: "Tanmay AI",
+        text: "Dekh, ye Tanmay AI hai — ek personal AI assistant!",
+        url: url
+    };
+    if (navigator.share) {
+        try {
+            await navigator.share(shareData);
+        } catch (e) {
+            if (e.name !== "AbortError") await copyToClipboard(url);
+        }
+    } else {
+        await copyToClipboard(url);
+    }
+}
+
 // =====================================================
-// DROPDOWN (MESSAGE MENU)
+// DROPDOWNS
 // =====================================================
 function closeDropdown() {
-    if (openDropdown && !openDropdown.classList.contains("header-dropdown")) {
+    if (openDropdown) {
         openDropdown.remove();
         openDropdown = null;
     }
@@ -542,16 +454,11 @@ document.addEventListener("click", e => {
     const isMsgBtn = e.target.closest(".msg-menu-btn");
     const isHeaderBtn = e.target.closest("#header-menu-btn");
     if (isMsgBtn || isHeaderBtn) return;
-    if (openDropdown.classList.contains("header-dropdown")) {
-        closeHeaderDropdown();
-    } else {
-        closeDropdown();
-    }
+    closeDropdown();
 });
 
 function openMenu(anchorBtn, menuItems, isUserMsg) {
     closeDropdown();
-    closeHeaderDropdown();
 
     const dropdown = document.createElement("div");
     dropdown.className = "msg-dropdown";
@@ -591,6 +498,53 @@ function openMenu(anchorBtn, menuItems, isUserMsg) {
 
     openDropdown = dropdown;
 }
+
+headerMenuBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    closeDropdown();
+
+    const dd = document.createElement("div");
+    dd.className = "header-dropdown";
+
+    const items = [];
+
+    if (!isStandalone()) {
+        items.push({ label: "Install App", icon: "fa-download", action: () => triggerInstall() });
+    }
+
+    items.push(
+        { label: "Share App", icon: "fa-share-nodes", action: () => shareApp() },
+        { label: "Settings", icon: "fa-gear", action: () => { closeSidebar(); openSettings(); } },
+        { label: "New Chat", icon: "fa-plus", action: () => startNewChatSession() }
+    );
+
+    items.forEach(item => {
+        const b = document.createElement("button");
+        b.className = "header-dropdown-item";
+        b.innerHTML = `<i class="fa-solid ${item.icon}"></i> ${item.label}`;
+        b.onclick = ev => {
+            ev.stopPropagation();
+            closeDropdown();
+            item.action();
+        };
+        dd.appendChild(b);
+    });
+
+    document.body.appendChild(dd);
+
+    const rect = headerMenuBtn.getBoundingClientRect();
+    const menuWidth = 210;
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + 6;
+
+    if (left < 10) left = 10;
+    if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
+
+    dd.style.left = left + "px";
+    dd.style.top = top + "px";
+
+    openDropdown = dd;
+});
 
 // =====================================================
 // MEMORY
@@ -690,7 +644,7 @@ settingsLogoutBtn.addEventListener("click", () => {
 });
 
 // =====================================================
-// SETTINGS PANEL
+// SETTINGS
 // =====================================================
 function openSettings() {
     settingsOverlay.classList.remove("hidden");
@@ -703,14 +657,8 @@ function closeSettings() {
     document.body.style.overflow = "";
 }
 
-openSettingsBtn.addEventListener("click", () => {
-    closeSidebar();
-    openSettings();
-});
-userProfileBtn.addEventListener("click", () => {
-    closeSidebar();
-    openSettings();
-});
+openSettingsBtn.addEventListener("click", () => { closeSidebar(); openSettings(); });
+userProfileBtn.addEventListener("click", () => { closeSidebar(); openSettings(); });
 closeSettingsBtn.addEventListener("click", closeSettings);
 settingsOverlay.addEventListener("click", e => {
     if (e.target === settingsOverlay) closeSettings();
@@ -1380,7 +1328,7 @@ async function loadFullChatSession(chatId) {
 }
 
 // =====================================================
-// KEYBOARD SHORTCUTS
+// KEYBOARD
 // =====================================================
 document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -1389,13 +1337,8 @@ document.addEventListener("keydown", e => {
         showToast("New chat", "info");
     }
     if (e.key === "Escape") {
-        if (openDropdown) {
-            if (openDropdown.classList.contains("header-dropdown")) closeHeaderDropdown();
-            else closeDropdown();
-        } else if (!settingsOverlay.classList.contains("hidden")) {
-            closeSettings();
-        } else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) {
-            closeSidebar();
-        }
+        if (openDropdown) closeDropdown();
+        else if (!settingsOverlay.classList.contains("hidden")) closeSettings();
+        else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) closeSidebar();
     }
 });
