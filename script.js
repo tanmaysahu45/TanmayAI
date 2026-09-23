@@ -40,6 +40,9 @@ const ADMIN_EMAILS = [
 const googleOAuthUrl =
     `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
+// sessionStorage — tab band hone pe clear, refresh pe rehta hai
+const CHAT_SESSION_KEY = "tanmay_active_chat";
+
 const loginContainer = document.getElementById("login-container");
 const appContainer = document.getElementById("app-container");
 const googleLoginBtn = document.getElementById("google-login-btn");
@@ -119,6 +122,18 @@ function formatTime(ts) {
     const ampm = h >= 12 ? "PM" : "AM";
     h = h % 12 || 12;
     return h + ":" + m + " " + ampm;
+}
+
+// =====================================================
+// SCROLL TO BOTTOM
+// =====================================================
+function scrollToBottom() {
+    requestAnimationFrame(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+    setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 80);
 }
 
 // =====================================================
@@ -237,7 +252,7 @@ googleLoginBtn.addEventListener("click", () => {
 logoutBtn.addEventListener("click", () => {
     signOut(auth).then(() => {
         window.speechSynthesis.cancel();
-        localStorage.removeItem("activeChatId");
+        sessionStorage.removeItem(CHAT_SESSION_KEY);
         showToast("Logged out", "info");
     });
 });
@@ -352,7 +367,7 @@ function showWelcomeScreen() {
 // =====================================================
 function startNewChatSession() {
     currentChatId = "chat_" + Date.now();
-    localStorage.setItem("activeChatId", currentChatId);
+    sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
     chatHistoryContext = [];
     showWelcomeScreen();
     window.speechSynthesis.cancel();
@@ -531,7 +546,7 @@ async function sendMessage() {
 
     if (!currentChatId) {
         currentChatId = "chat_" + Date.now();
-        localStorage.setItem("activeChatId", currentChatId);
+        sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
     }
 
     const welcomeBlock = messagesContainer.querySelector(".welcome-block");
@@ -677,29 +692,50 @@ async function loadAllSidebarTopics(isInitialLoad) {
 
     try {
         historyList.innerHTML = "";
-        const chatIdsInOrder = [];
-        const seenChatIds = new Set();
 
-        const q = query(collection(db, "chat_messages"), orderBy("timestamp", "desc"));
+        // Puri collection fetch karo, phir JS mein group karo
+        const q = query(collection(db, "chat_messages"));
         const snap = await getDocs(q);
+
+        // Har chat ke liye: first message (title), first time, last time
+        const chatMap = new Map();
 
         snap.forEach(docSnap => {
             const data = docSnap.data();
-            if (data.uid === currentUser.uid && !seenChatIds.has(data.chatId)) {
-                seenChatIds.add(data.chatId);
-                chatIdsInOrder.push({
-                    chatId: data.chatId,
-                    userText: data.userText,
-                    timestamp: data.timestamp
+            if (data.uid !== currentUser.uid) return;
+
+            const chatId = data.chatId;
+            if (!chatId) return;
+
+            if (!chatMap.has(chatId)) {
+                chatMap.set(chatId, {
+                    chatId: chatId,
+                    firstUserText: data.userText || "Chat",
+                    firstTimestamp: data.timestamp || 0,
+                    latestTimestamp: data.timestamp || 0
                 });
+            } else {
+                const c = chatMap.get(chatId);
+                const ts = data.timestamp || 0;
+                if (ts < c.firstTimestamp) {
+                    c.firstTimestamp = ts;
+                    c.firstUserText = data.userText || c.firstUserText;
+                }
+                if (ts > c.latestTimestamp) {
+                    c.latestTimestamp = ts;
+                }
             }
         });
 
-        chatIdsInOrder.sort((a, b) => b.timestamp - a.timestamp);
-        chatIdsInOrder.forEach(item => {
-            addTopicToSidebarUI(item.userText, item.chatId);
+        // Order: latest activity first
+        const chatList = Array.from(chatMap.values());
+        chatList.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+
+        chatList.forEach(item => {
+            addTopicToSidebarUI(item.firstUserText, item.chatId);
         });
 
+        // Search filter
         const term = chatSearchInput.value.toLowerCase().trim();
         if (term) {
             document.querySelectorAll(".history-item-wrapper").forEach(el => {
@@ -708,16 +744,19 @@ async function loadAllSidebarTopics(isInitialLoad) {
             });
         }
 
+        // Initial load: sessionStorage check
         if (isInitialLoad) {
-            const savedChatId = localStorage.getItem("activeChatId");
-            if (savedChatId && seenChatIds.has(savedChatId)) {
+            const savedChatId = sessionStorage.getItem(CHAT_SESSION_KEY);
+            const chatExists = savedChatId && chatMap.has(savedChatId);
+
+            if (chatExists) {
                 currentChatId = savedChatId;
                 await loadFullChatSession(currentChatId);
-                isInitialLoadRunning = false;
             } else {
                 startNewChatSession();
-                isInitialLoadRunning = false;
             }
+
+            isInitialLoadRunning = false;
         }
     } catch (error) {
         console.error("Sidebar error:", error);
@@ -738,13 +777,13 @@ function addTopicToSidebarUI(firstQuestion, chatId) {
     const textSpan = document.createElement("span");
     textSpan.classList.add("history-text");
     textSpan.innerText =
-        firstQuestion && firstQuestion.length > 18
-            ? firstQuestion.substring(0, 18) + "..."
+        firstQuestion && firstQuestion.length > 20
+            ? firstQuestion.substring(0, 20) + "..."
             : firstQuestion || "Chat";
 
     textSpan.onclick = () => {
         currentChatId = chatId;
-        localStorage.setItem("activeChatId", chatId);
+        sessionStorage.setItem(CHAT_SESSION_KEY, chatId);
         document.querySelectorAll(".history-item-wrapper").forEach(el => {
             el.classList.remove("active-chat-topic");
         });
@@ -773,8 +812,9 @@ function addTopicToSidebarUI(firstQuestion, chatId) {
             }
         }
 
-        if (currentChatId === chatId) {
-            localStorage.removeItem("activeChatId");
+        const wasActive = currentChatId === chatId;
+        if (wasActive) {
+            sessionStorage.removeItem(CHAT_SESSION_KEY);
             startNewChatSession();
         }
         loadAllSidebarTopics(false);
@@ -787,7 +827,7 @@ function addTopicToSidebarUI(firstQuestion, chatId) {
 }
 
 // =====================================================
-// LOAD CHAT
+// LOAD CHAT (with scroll to bottom)
 // =====================================================
 async function loadFullChatSession(chatId) {
     messagesContainer.innerHTML = "";
@@ -813,7 +853,8 @@ async function loadFullChatSession(chatId) {
             chatHistoryContext.push({ role: "assistant", content: data.aiText });
         }
 
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // Scroll to bottom after render
+        scrollToBottom();
     } catch (error) {
         console.error("Session error:", error);
     }
@@ -835,7 +876,7 @@ clearHistoryBtn.addEventListener("click", async () => {
         }
     }
 
-    localStorage.removeItem("activeChatId");
+    sessionStorage.removeItem(CHAT_SESSION_KEY);
     startNewChatSession();
     historyList.innerHTML = "";
     showToast("History cleared", "success");
