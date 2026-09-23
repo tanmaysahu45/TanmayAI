@@ -108,9 +108,6 @@ let globalRulesDocs = [];
 
 let userPersonalMemoryCache = [];
 
-let lastQuestionForEdit = "";
-let lastAIResponseForEdit = "";
-
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
 
@@ -426,7 +423,7 @@ function startNewChatSession() {
 
     const welcomeText =
         isCurrentUserAdmin()
-            ? "Hello Tanmay! 👑 You are Admin. AI se kuchh bhi poochho. Kisi jawab ko correct karke Global Knowledge mein save bhi kar sakte ho."
+            ? "Hello Tanmay! 👑 You are Admin. AI se kuchh bhi poochho."
             : `Hello ${displayName}! 👋 Main Tanmay AI hoon. Main tumhari personal memory yaad rakh sakta hoon.`;
 
     messagesContainer.innerHTML = `
@@ -814,10 +811,6 @@ function createAdminControls() {
         "tanmay-admin-panel";
 
     panel.innerHTML = `
-        <div class="tanmay-admin-title">
-            👑 Admin
-        </div>
-
         <button
             id="add-global-memory-btn"
             class="tanmay-admin-button"
@@ -1442,12 +1435,6 @@ async function sendMessage() {
             const aiResponse =
                 data.reply;
 
-            lastQuestionForEdit =
-                text;
-
-            lastAIResponseForEdit =
-                aiResponse;
-
             chatHistoryContext.push({
                 role: "assistant",
                 content:
@@ -1459,6 +1446,10 @@ async function sendMessage() {
                 true,
                 text
             );
+
+            // =========================================
+            // MODEL INFO — ADMIN KO DIKHEGA
+            // =========================================
 
             if (
                 isCurrentUserAdmin() &&
@@ -1481,6 +1472,9 @@ async function sendMessage() {
                 messagesContainer.appendChild(
                     modelInfo
                 );
+
+                messagesContainer.scrollTop =
+                    messagesContainer.scrollHeight;
             }
 
             await saveMessageToFirebase(
@@ -2127,11 +2121,6 @@ adminStyle.innerHTML = `
 #tanmay-admin-panel {
     padding: 8px;
     margin-bottom: 8px;
-}
-
-.tanmay-admin-title {
-    font-weight: 700;
-    margin-bottom: 7px;
 }
 
 .tanmay-admin-button {
