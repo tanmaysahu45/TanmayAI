@@ -1,34 +1,19 @@
 /* =========================================================
    TANMAY AI - MAIN SCRIPT
-   Version 6.0
+   Version 6.1
    Made by Tanmay Sahu
    ========================================================= */
 
-/* =========================================================
-   IMPORTS
-   ========================================================= */
+/* ============= IMPORTS ============= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import {
-    getAuth,
-    signInWithPopup,
-    GoogleAuthProvider,
-    onAuthStateChanged,
-    signOut
+    getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
 import {
-    getFirestore,
-    collection,
-    addDoc,
-    query,
-    deleteDoc,
-    doc,
-    getDocs,
-    where
+    getFirestore, collection, addDoc, query, deleteDoc, doc, getDocs, where
 } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 
-/* =========================================================
-   FIREBASE CONFIG
-   ========================================================= */
+/* ============= FIREBASE ============= */
 const firebaseConfig = {
     apiKey: "AIzaSyBQmzNsAaabSHw_s3gbulq45VTn4Ti0mq0",
     authDomain: "tanmay-ai-1190d.firebaseapp.com",
@@ -51,29 +36,18 @@ const googleOAuthUrl =
     "https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=" +
     firebaseConfig.apiKey;
 
-/* =========================================================
-   PWA — SERVICE WORKER + AUTO UPDATE
-   ========================================================= */
+/* ============= PWA ============= */
 let isRefreshing = false;
 
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("./service-worker.js")
             .then(reg => {
-                setInterval(() => {
-                    reg.update().catch(() => {});
-                }, 60000);
-
+                setInterval(() => reg.update().catch(() => {}), 60000);
                 document.addEventListener("visibilitychange", () => {
-                    if (document.visibilityState === "visible") {
-                        reg.update().catch(() => {});
-                    }
+                    if (document.visibilityState === "visible") reg.update().catch(() => {});
                 });
-
-                if (reg.waiting) {
-                    reg.waiting.postMessage("SKIP_WAITING");
-                }
-
+                if (reg.waiting) reg.waiting.postMessage("SKIP_WAITING");
                 reg.addEventListener("updatefound", () => {
                     const nsw = reg.installing;
                     if (!nsw) return;
@@ -94,14 +68,10 @@ if ("serviceWorker" in navigator) {
     });
 }
 
-/* =========================================================
-   DOM SHORTCUT
-   ========================================================= */
+/* ============= DOM SHORTCUT ============= */
 const $ = id => document.getElementById(id);
 
-/* =========================================================
-   DOM ELEMENTS
-   ========================================================= */
+/* ============= DOM ELEMENTS ============= */
 const loginContainer = $("login-container");
 const appContainer = $("app-container");
 const googleLoginBtn = $("google-login-btn");
@@ -190,11 +160,9 @@ const ccAiLine = $("cc-ai-line");
 const ccUserLine = $("cc-user-line");
 const callCaptions = $("call-captions");
 
-console.log("Tanmay AI v6 loaded ✓");
+console.log("Tanmay AI v6.1 loaded ✓");
 
-/* =========================================================
-   GLOBAL STATE
-   ========================================================= */
+/* ============= STATE ============= */
 let isVoiceEnabled = true;
 let autoSendVoice = true;
 let showCc = true;
@@ -214,29 +182,25 @@ let studyFormulas = [];
 let currentView = "chat";
 let pendingImage = null;
 
-// Call mode state
+/* Call mode state */
 let callModeActive = false;
 let callRecognition = null;
 let callIsListening = false;
 let callHistoryContext = [];
-let callLoopTimer = null;
 let callSpeaking = false;
-let callListenRestartTimer = null;
+let callKeepAliveTimer = null;
+let callManuallyStopped = false;
 
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
 
-/* =========================================================
-   UTILITY — PLATFORM DETECT
-   ========================================================= */
+/* ============= PLATFORM ============= */
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 const isStandalone = () =>
     window.matchMedia("(display-mode: standalone)").matches ||
     window.navigator.standalone === true;
 
-/* =========================================================
-   PWA INSTALL PROMPT
-   ========================================================= */
+/* ============= PWA INSTALL ============= */
 window.addEventListener("beforeinstallprompt", e => {
     e.preventDefault();
     deferredInstallPrompt = e;
@@ -254,37 +218,19 @@ function updateInstallUI() {
         installSection.style.display = "none";
         return;
     }
-
     installSection.style.display = "block";
 
     if (deferredInstallPrompt) {
         settingsInstallBtn.style.display = "flex";
-        settingsInstallBtn.innerHTML = `
-            <i class="fa-solid fa-download"></i>
-            <div>
-                <strong>Install Tanmay AI</strong>
-                <small>App ki tarah lagao</small>
-            </div>
-        `;
+        settingsInstallBtn.innerHTML = `<i class="fa-solid fa-download"></i><div><strong>Install Tanmay AI</strong><small>App ki tarah lagao</small></div>`;
         installHint.style.display = "none";
     } else if (isIOS()) {
         settingsInstallBtn.style.display = "none";
         installHint.style.display = "block";
-        installHint.innerHTML = `
-            <strong>iPhone/iPad:</strong><br>
-            1. Safari Share button dabao<br>
-            2. Add to Home Screen<br>
-            3. Add
-        `;
+        installHint.innerHTML = `<strong>iPhone/iPad:</strong><br>1. Safari Share button dabao<br>2. Add to Home Screen<br>3. Add`;
     } else {
         settingsInstallBtn.style.display = "flex";
-        settingsInstallBtn.innerHTML = `
-            <i class="fa-solid fa-download"></i>
-            <div>
-                <strong>Install Tanmay AI</strong>
-                <small>Browser menu se</small>
-            </div>
-        `;
+        settingsInstallBtn.innerHTML = `<i class="fa-solid fa-download"></i><div><strong>Install Tanmay AI</strong><small>Browser menu se</small></div>`;
         installHint.style.display = "block";
         installHint.innerHTML = `Browser menu (⋮) mein "Install App" dhundho.`;
     }
@@ -294,10 +240,7 @@ async function triggerInstall() {
     if (deferredInstallPrompt) {
         deferredInstallPrompt.prompt();
         const c = await deferredInstallPrompt.userChoice;
-        showToast(
-            c.outcome === "accepted" ? "Installing..." : "Cancelled",
-            c.outcome === "accepted" ? "success" : "info"
-        );
+        showToast(c.outcome === "accepted" ? "Installing..." : "Cancelled", c.outcome === "accepted" ? "success" : "info");
         deferredInstallPrompt = null;
         updateInstallUI();
     } else if (isIOS()) {
@@ -309,9 +252,7 @@ async function triggerInstall() {
 
 settingsInstallBtn.addEventListener("click", triggerInstall);
 
-/* =========================================================
-   SETTINGS LOAD/SAVE
-   ========================================================= */
+/* ============= SETTINGS ============= */
 function loadSettings() {
     const theme = localStorage.getItem("tanmay-theme") || "dark";
     if (theme === "light") {
@@ -345,9 +286,6 @@ function loadSettings() {
 loadSettings();
 updateInstallUI();
 
-/* =========================================================
-   THEME
-   ========================================================= */
 function applyTheme(theme) {
     if (theme === "light") {
         document.body.classList.add("light-mode");
@@ -358,7 +296,6 @@ function applyTheme(theme) {
     }
     localStorage.setItem("tanmay-theme", theme);
     settingTheme.value = theme;
-
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", theme === "light" ? "#f5f5f7" : "#0f0f10");
 }
@@ -369,18 +306,12 @@ themeToggleBtn.addEventListener("click", () => {
 
 settingTheme.addEventListener("change", e => applyTheme(e.target.value));
 
-/* =========================================================
-   LANGUAGE
-   ========================================================= */
 settingLanguage.addEventListener("change", e => {
     currentLanguage = e.target.value;
     localStorage.setItem("tanmay-language", currentLanguage);
     showToast("Language updated", "success");
 });
 
-/* =========================================================
-   VOICE TOGGLES
-   ========================================================= */
 settingVoiceToggle.addEventListener("change", e => {
     isVoiceEnabled = e.target.checked;
     localStorage.setItem("tanmay-voice", isVoiceEnabled ? "on" : "off");
@@ -407,9 +338,7 @@ if (settingCcToggle) {
     });
 }
 
-/* =========================================================
-   TOAST
-   ========================================================= */
+/* ============= TOAST ============= */
 function showToast(message, type) {
     if (!type) type = "success";
     const t = document.createElement("div");
@@ -423,9 +352,7 @@ function showToast(message, type) {
     }, 2600);
 }
 
-/* =========================================================
-   TIME HELPER
-   ========================================================= */
+/* ============= TIME ============= */
 function formatTime(ts) {
     const d = new Date(ts);
     let h = d.getHours();
@@ -435,9 +362,6 @@ function formatTime(ts) {
     return h + ":" + m + " " + ampm;
 }
 
-/* =========================================================
-   SCROLL HELPER
-   ========================================================= */
 function scrollToBottom() {
     requestAnimationFrame(() => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -447,15 +371,10 @@ function scrollToBottom() {
     }, 80);
 }
 
-/* =========================================================
-   LOADER
-   ========================================================= */
+/* ============= LOADER ============= */
 const globalLoader = document.createElement("div");
 globalLoader.classList.add("custom-loader-wrapper");
-globalLoader.innerHTML = `
-    <div class="chakri"></div>
-    <div class="loader-text">Tanmay AI is loading...</div>
-`;
+globalLoader.innerHTML = `<div class="chakri"></div><div class="loader-text">Tanmay AI is loading...</div>`;
 document.body.appendChild(globalLoader);
 
 function removeLoader() {
@@ -467,20 +386,11 @@ function removeLoader() {
     }
 }
 
-/* =========================================================
-   ADMIN CHECK
-   ========================================================= */
 function isCurrentUserAdmin() {
-    return !!(
-        currentUser &&
-        currentUser.email &&
-        ADMIN_EMAILS.includes(currentUser.email.toLowerCase())
-    );
+    return !!(currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email.toLowerCase()));
 }
 
-/* =========================================================
-   COPY / SHARE
-   ========================================================= */
+/* ============= COPY / SHARE ============= */
 async function copyToClipboard(text) {
     try {
         if (navigator.clipboard && window.isSecureContext) {
@@ -517,11 +427,7 @@ async function shareApp() {
     const url = window.location.origin + window.location.pathname;
     if (navigator.share) {
         try {
-            await navigator.share({
-                title: "Tanmay AI",
-                text: "Dekh, ye Tanmay AI hai!",
-                url: url
-            });
+            await navigator.share({ title: "Tanmay AI", text: "Dekh, ye Tanmay AI hai!", url: url });
         } catch (e) {
             if (e.name !== "AbortError") await copyToClipboard(url);
         }
@@ -530,9 +436,7 @@ async function shareApp() {
     }
 }
 
-/* =========================================================
-   DROPDOWNS
-   ========================================================= */
+/* ============= DROPDOWNS ============= */
 function closeDropdown() {
     if (openDropdown) {
         openDropdown.remove();
@@ -619,9 +523,7 @@ headerMenuBtn.addEventListener("click", e => {
     openDropdown = dd;
 });
 
-/* =========================================================
-   MEMORY LOAD
-   ========================================================= */
+/* ============= MEMORY ============= */
 async function loadAllMemories() {
     if (!currentUser) return;
     try {
@@ -632,30 +534,21 @@ async function loadAllMemories() {
             if (x && x.rule) globalRulesCache.push(x.rule);
         });
 
-        const uSnap = await getDocs(
-            collection(db, "users_memory/" + currentUser.uid + "/memories")
-        );
+        const uSnap = await getDocs(collection(db, "users_memory/" + currentUser.uid + "/memories"));
         userPersonalMemoryCache = [];
         uSnap.forEach(d => {
-            if (d.data() && d.data().memory) {
-                userPersonalMemoryCache.push(d.data().memory);
-            }
+            if (d.data() && d.data().memory) userPersonalMemoryCache.push(d.data().memory);
         });
     } catch (e) {
         console.error("Memory load error:", e);
     }
 }
 
-/* =========================================================
-   AUTH STATE
-   ========================================================= */
+/* ============= AUTH ============= */
 onAuthStateChanged(auth, async user => {
     if (user) {
         currentUser = user;
-        const displayName =
-            user.displayName ||
-            (user.email && user.email.split("@")[0]) ||
-            "User";
+        const displayName = user.displayName || (user.email && user.email.split("@")[0]) || "User";
         const email = user.email || "";
 
         usernameDisplay.innerText = displayName;
@@ -694,26 +587,15 @@ onAuthStateChanged(auth, async user => {
     }
 });
 
-/* =========================================================
-   LOGIN
-   ========================================================= */
 googleLoginBtn.addEventListener("click", () => {
-    const isWebView =
-        /wv|WebView/i.test(window.navigator.userAgent) ||
-        (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
-
+    const isWebView = /wv|WebView/i.test(window.navigator.userAgent) || (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
     if (isWebView) {
         window.location.href = googleOAuthUrl;
     } else {
-        signInWithPopup(auth, provider).catch(e => {
-            showToast("Login Error: " + e.message, "error");
-        });
+        signInWithPopup(auth, provider).catch(e => showToast("Login Error: " + e.message, "error"));
     }
 });
 
-/* =========================================================
-   LOGOUT
-   ========================================================= */
 function doLogout() {
     signOut(auth).then(() => {
         window.speechSynthesis.cancel();
@@ -727,9 +609,7 @@ settingsLogoutBtn.addEventListener("click", () => {
     if (confirm("Sign out from Tanmay AI?")) doLogout();
 });
 
-/* =========================================================
-   SETTINGS PANEL
-   ========================================================= */
+/* ============= SETTINGS PANEL ============= */
 function openSettings() {
     settingsOverlay.classList.remove("hidden");
     document.body.style.overflow = "hidden";
@@ -748,9 +628,7 @@ settingsOverlay.addEventListener("click", e => {
     if (e.target === settingsOverlay) closeSettings();
 });
 
-/* =========================================================
-   CLEAR DATA
-   ========================================================= */
+/* ============= CLEAR DATA ============= */
 settingsClearHistory.addEventListener("click", async () => {
     if (!currentUser) return;
     if (!confirm("Clear ALL chat history?")) return;
@@ -790,9 +668,7 @@ settingsClearMemory.addEventListener("click", async () => {
     }
 });
 
-/* =========================================================
-   SIDEBAR
-   ========================================================= */
+/* ============= SIDEBAR ============= */
 function openSidebar() {
     sidebar.classList.remove("collapsed");
     if (window.innerWidth <= 768) sidebarOverlay.classList.add("active");
@@ -812,9 +688,6 @@ sidebarToggleBtn.addEventListener("click", e => {
 sidebarOverlay.addEventListener("click", closeSidebar);
 sidebarCloseBtn.addEventListener("click", closeSidebar);
 
-/* =========================================================
-   SEARCH CHATS
-   ========================================================= */
 chatSearchInput.addEventListener("input", e => {
     const term = e.target.value.toLowerCase().trim();
     document.querySelectorAll(".history-item-wrapper").forEach(el => {
@@ -823,9 +696,7 @@ chatSearchInput.addEventListener("input", e => {
     });
 });
 
-/* =========================================================
-   VIEW SWITCH
-   ========================================================= */
+/* ============= VIEW SWITCH ============= */
 function switchView(view) {
     currentView = view;
     document.querySelectorAll(".sidebar-nav-btn").forEach(b => b.classList.remove("active"));
@@ -851,9 +722,7 @@ function switchView(view) {
 navChat.addEventListener("click", () => switchView("chat"));
 navStudy.addEventListener("click", () => switchView("study"));
 
-/* =========================================================
-   STUDY TABS
-   ========================================================= */
+/* ============= STUDY TABS ============= */
 studyTabs.forEach(tab => {
     tab.addEventListener("click", () => {
         const t = tab.dataset.tab;
@@ -865,9 +734,7 @@ studyTabs.forEach(tab => {
     });
 });
 
-/* =========================================================
-   STUDY DATA
-   ========================================================= */
+/* ============= STUDY DATA ============= */
 function studyKey() {
     return currentUser ? "study_" + currentUser.uid : "study_guest";
 }
@@ -979,9 +846,7 @@ saveFormulaBtn.addEventListener("click", () => {
     showToast("Formula added", "success");
 });
 
-/* =========================================================
-   QUIZ
-   ========================================================= */
+/* ============= QUIZ ============= */
 startQuizBtn.addEventListener("click", async () => {
     const topic = quizTopicInput.value.trim();
     if (!topic) return showToast("Topic likho pehle", "error");
@@ -1092,9 +957,7 @@ function renderQuiz(rawText) {
     });
 }
 
-/* =========================================================
-   PLUS BUTTON + ATTACH MENU
-   ========================================================= */
+/* ============= PLUS BUTTON + ATTACH MENU ============= */
 function openAttachMenu() {
     closeDropdown();
 
@@ -1168,9 +1031,7 @@ async function pasteImageFromClipboard() {
     }
 }
 
-/* =========================================================
-   IMAGE HANDLING
-   ========================================================= */
+/* ============= IMAGE HANDLING ============= */
 function handleImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -1219,9 +1080,7 @@ pendingRemove.addEventListener("click", () => {
     pendingCaption.value = "";
 });
 
-/* =========================================================
-   SEND MESSAGE
-   ========================================================= */
+/* ============= SEND MESSAGE ============= */
 async function sendMessage() {
     if (pendingImage) {
         const caption = pendingCaption.value.trim();
@@ -1252,10 +1111,7 @@ async function sendMessage() {
     chatHistoryContext.push({ role: "user", content: text });
 
     const userEmail = currentUser.email || "No Email";
-    const userName =
-        currentUser.displayName ||
-        (currentUser.email && currentUser.email.split("@")[0]) ||
-        "User";
+    const userName = currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
 
     const memRx = /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|suno:|sun:)\s*(.*)/i;
     const match = text.match(memRx);
@@ -1313,11 +1169,7 @@ async function sendMessage() {
 
             await saveMessageToFirebase(currentChatId, text, aiReply);
         } else {
-            appendAIMessage(
-                (data && data.reply) || "Abhi response nahi aaya.",
-                true,
-                text
-            );
+            appendAIMessage((data && data.reply) || "Abhi response nahi aaya.", true, text);
         }
     } catch (e) {
         if (messagesContainer.contains(lr)) messagesContainer.removeChild(lr);
@@ -1334,9 +1186,7 @@ pendingCaption.addEventListener("keypress", e => {
     if (e.key === "Enter") sendMessage();
 });
 
-/* =========================================================
-   SEND IMAGE MESSAGE
-   ========================================================= */
+/* ============= SEND IMAGE ============= */
 async function sendImageMessage(dataUrl, mime, caption) {
     if (!currentUser) return;
     if (currentView !== "chat") switchView("chat");
@@ -1382,21 +1232,15 @@ async function sendImageMessage(dataUrl, mime, caption) {
         if (res.ok && data.reply) {
             chatHistoryContext.push({ role: "assistant", content: data.reply });
             appendAIMessage(data.reply, true, userText);
-
             if (isCurrentUserAdmin() && data.showModel && data.provider && data.model) {
                 const mi = document.createElement("div");
                 mi.className = "admin-model-info";
                 mi.innerText = "🤖 " + data.provider + " • " + data.model;
                 messagesContainer.appendChild(mi);
             }
-
             await saveMessageToFirebase(currentChatId, userText, data.reply);
         } else {
-            appendAIMessage(
-                (data && data.reply) || "Image samajh nahi paaya.",
-                true,
-                userText
-            );
+            appendAIMessage((data && data.reply) || "Image samajh nahi paaya.", true, userText);
         }
     } catch (e) {
         if (messagesContainer.contains(lr)) messagesContainer.removeChild(lr);
@@ -1407,28 +1251,23 @@ async function sendImageMessage(dataUrl, mime, caption) {
 function appendUserImageMessage(dataUrl, caption) {
     const row = document.createElement("div");
     row.classList.add("message-row", "user-row");
-
     const bubble = document.createElement("div");
     bubble.classList.add("message", "user-message");
-
     const img = document.createElement("img");
     img.src = dataUrl;
     img.className = "message-image";
     img.onclick = () => openImageLightbox(dataUrl);
     bubble.appendChild(img);
-
     if (caption) {
         const t = document.createElement("div");
         t.className = "message-text";
         t.innerText = caption;
         bubble.appendChild(t);
     }
-
     const timeNode = document.createElement("div");
     timeNode.classList.add("msg-time");
     timeNode.innerText = formatTime(Date.now());
     bubble.appendChild(timeNode);
-
     row.appendChild(bubble);
     messagesContainer.appendChild(row);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -1437,24 +1276,21 @@ function appendUserImageMessage(dataUrl, caption) {
 function openImageLightbox(src) {
     const lb = document.createElement("div");
     lb.className = "image-lightbox";
-    lb.innerHTML =
-        '<button class="image-lightbox-close"><i class="fa-solid fa-xmark"></i></button>' +
-        '<img src="' + src + '">';
+    lb.innerHTML = '<button class="image-lightbox-close"><i class="fa-solid fa-xmark"></i></button><img src="' + src + '">';
     document.body.appendChild(lb);
     lb.onclick = () => lb.remove();
 }
 
 /* =========================================================
-   CALL MODE — barge-in + live CC + auto loop
+   CALL MODE — AUTO LISTEN + BARGE-IN + DETAILED ANSWERS
    ========================================================= */
+
 function updateCc(aiText, userText, isInterim) {
     if (!showCc) return;
-
     if (aiText !== undefined) {
         ccAiLine.innerText = aiText;
         ccAiLine.classList.toggle("show", !!aiText);
     }
-
     if (userText !== undefined) {
         ccUserLine.innerText = userText;
         ccUserLine.classList.toggle("show", !!userText);
@@ -1470,32 +1306,62 @@ function clearCc() {
     ccUserLine.classList.remove("interim");
 }
 
+/* Keep-alive: agar recognition band ho jaaye, turant restart */
+function startCallKeepAlive() {
+    stopCallKeepAlive();
+    callKeepAliveTimer = setInterval(() => {
+        if (!callModeActive) return;
+        if (callManuallyStopped) return;
+        if (!callIsListening) {
+            try {
+                if (callRecognition) callRecognition.start();
+            } catch (e) {
+                // already started ya transition — ignore
+            }
+        }
+    }, 400);
+}
+
+function stopCallKeepAlive() {
+    if (callKeepAliveTimer) {
+        clearInterval(callKeepAliveTimer);
+        callKeepAliveTimer = null;
+    }
+}
+
 function startCallMode() {
     if (!currentUser) return showToast("Pehle login karo", "error");
 
+    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+        return showToast("Aapke browser mein mic support nahi hai", "error");
+    }
+
     callModeActive = true;
     callSpeaking = false;
+    callManuallyStopped = false;
     callHistoryContext = [];
     callOverlay.classList.remove("hidden");
     callStatus.innerText = "Connecting...";
     callSub.innerText = "Voice Call Mode";
     callWave.classList.add("idle");
-    callMicBtn.classList.remove("active");
+    callMicBtn.classList.add("active");
     callIsListening = false;
     clearCc();
 
-    if (!("speechSynthesis" in window)) {
-        showToast("Voice output support nahi hai", "error");
-        return;
-    }
-
-    // Greeting
+    // Start recognition immediately
     setTimeout(() => {
         if (!callModeActive) return;
-        const greeting = "Namaste! Main Tanmay AI hoon. Batao, kya madad karun?";
+        startCallListening();
+        startCallKeepAlive();
+    }, 200);
+
+    // Greeting after mic is ready
+    setTimeout(() => {
+        if (!callModeActive) return;
+        const greeting = "Namaste! Main Tanmay AI hoon. Batao, kya jaanna hai?";
         updateCc(greeting, "", false);
         speakCallReply(greeting);
-    }, 500);
+    }, 900);
 }
 
 callBtn.addEventListener("click", startCallMode);
@@ -1504,11 +1370,9 @@ function endCallMode() {
     callModeActive = false;
     callIsListening = false;
     callSpeaking = false;
+    callManuallyStopped = true;
+    stopCallKeepAlive();
     window.speechSynthesis.cancel();
-    if (callListenRestartTimer) {
-        clearTimeout(callListenRestartTimer);
-        callListenRestartTimer = null;
-    }
     try { if (callRecognition) callRecognition.stop(); } catch (e) {}
     callOverlay.classList.add("hidden");
     callWave.classList.add("idle");
@@ -1534,13 +1398,14 @@ callCcBtn.addEventListener("click", () => {
     showToast(showCc ? "Captions ON" : "Captions OFF", "info");
 });
 
-/* Setup call recognition — barge-in enabled */
+/* Setup call recognition */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     callRecognition = new SR();
     callRecognition.continuous = true;
     callRecognition.interimResults = true;
     callRecognition.lang = "en-US";
+    callRecognition.maxAlternatives = 1;
 
     callRecognition.onstart = () => {
         callIsListening = true;
@@ -1552,9 +1417,9 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     };
 
     callRecognition.onresult = (ev) => {
-        // BARGE-IN
-        if (callSpeaking && window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
+        // STRONG BARGE-IN: koi bhi awaaz aaye, AI turant ruk
+        if (window.speechSynthesis.speaking || callSpeaking) {
+            try { window.speechSynthesis.cancel(); } catch (e) {}
             callSpeaking = false;
             callWave.classList.add("idle");
             callStatus.innerText = "Listening...";
@@ -1586,13 +1451,13 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
         callIsListening = false;
         callMicBtn.classList.remove("active");
 
-        if (callModeActive) {
-            if (callListenRestartTimer) clearTimeout(callListenRestartTimer);
-            callListenRestartTimer = setTimeout(() => {
-                if (callModeActive && !callIsListening) {
+        // Auto restart (very quickly)
+        if (callModeActive && !callManuallyStopped) {
+            setTimeout(() => {
+                if (callModeActive && !callIsListening && !callManuallyStopped) {
                     try { callRecognition.start(); } catch (e) {}
                 }
-            }, 300);
+            }, 150);
         }
     };
 
@@ -1601,45 +1466,56 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
         callMicBtn.classList.remove("active");
         console.log("Call rec error:", ev.error);
 
-        if (callModeActive && ev.error !== "aborted" && ev.error !== "no-speech") {
-            if (callListenRestartTimer) clearTimeout(callListenRestartTimer);
-            callListenRestartTimer = setTimeout(() => {
-                if (callModeActive && !callIsListening) {
+        if (callModeActive && !callManuallyStopped && ev.error !== "aborted") {
+            setTimeout(() => {
+                if (callModeActive && !callIsListening && !callManuallyStopped) {
                     try { callRecognition.start(); } catch (e) {}
                 }
-            }, 500);
+            }, 300);
         }
     };
 }
 
 function startCallListening() {
-    if (!callModeActive || callIsListening) return;
+    if (!callModeActive) return;
+    if (callIsListening) return;
     if (!callRecognition) {
         callStatus.innerText = "Mic support nahi";
         return;
     }
-    window.speechSynthesis.cancel();
-    callSpeaking = false;
-    try { callRecognition.start(); } catch (e) {}
+
+    try {
+        callRecognition.start();
+    } catch (e) {
+        // already started — fine
+    }
 }
 
 callMicBtn.addEventListener("click", () => {
     if (!callModeActive) return;
-    if (callIsListening) {
-        try { callRecognition.stop(); } catch (e) {}
-        callIsListening = false;
-        callMicBtn.classList.remove("active");
-        callWave.classList.add("idle");
-        callStatus.innerText = "Stopped";
+
+    if (callManuallyStopped) {
+        // user wants to resume
+        callManuallyStopped = false;
+        callMicBtn.classList.add("active");
+        startCallListening();
+        startCallKeepAlive();
+        callStatus.innerText = "Listening...";
         return;
     }
-    startCallListening();
+
+    // Stop temporarily
+    callManuallyStopped = true;
+    try { callRecognition.stop(); } catch (e) {}
+    callIsListening = false;
+    callMicBtn.classList.remove("active");
+    callWave.classList.add("idle");
+    callStatus.innerText = "Muted — tap mic to resume";
 });
 
 async function handleCallUserSpeech(userText) {
     callStatus.innerText = "Thinking...";
     callWave.classList.add("idle");
-    callMicBtn.classList.remove("active");
     callHistoryContext.push({ role: "user", content: userText });
 
     try {
@@ -1647,7 +1523,10 @@ async function handleCallUserSpeech(userText) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                messages: callHistoryContext.slice(-6),
+                messages: [
+                    { role: "user", content: "IMPORTANT: Answer in DETAIL. At least 3-5 sentences. Explain properly. User is on voice call, so be conversational but thorough." },
+                    ...callHistoryContext.slice(-6)
+                ],
                 userName: currentUser.displayName || "User",
                 userEmail: currentUser.email || "",
                 globalRules: globalRulesCache,
@@ -1676,14 +1555,12 @@ async function handleCallUserSpeech(userText) {
     }
 }
 
-function speakCallReply(text, onDone) {
-    if (!("speechSynthesis" in window)) {
-        if (onDone) onDone();
-        return;
-    }
+function speakCallReply(text) {
+    if (!("speechSynthesis" in window)) return;
 
     const doSpeak = () => {
-        window.speechSynthesis.cancel();
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+
         const u = new SpeechSynthesisUtterance(text);
         u.lang = "en-US";
         u.rate = 1.0;
@@ -1704,15 +1581,24 @@ function speakCallReply(text, onDone) {
         u.onend = () => {
             callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) callStatus.innerText = "Listening...";
-            if (onDone) onDone();
+            if (callModeActive) {
+                callStatus.innerText = "Listening...";
+                // Ensure mic is on
+                if (!callIsListening && !callManuallyStopped) {
+                    startCallListening();
+                }
+            }
         };
 
         u.onerror = () => {
             callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) callStatus.innerText = "Listening...";
-            if (onDone) onDone();
+            if (callModeActive) {
+                callStatus.innerText = "Listening...";
+                if (!callIsListening && !callManuallyStopped) {
+                    startCallListening();
+                }
+            }
         };
 
         window.speechSynthesis.speak(u);
@@ -1733,41 +1619,20 @@ if ("speechSynthesis" in window) {
     window.speechSynthesis.getVoices();
 }
 
-/* =========================================================
-   CHIPS POOL
-   ========================================================= */
+/* ============= CHIPS ============= */
 const CHIP_POOL = [
-    "Mujhe ek joke sunao",
-    "Ek chhoti si kahani likho",
-    "Aaj ka din kaisa rahega",
-    "Mujhe motivate karo",
-    "Ek shayari sunao",
-    "Kuchh interesting batao",
-    "Ek puzzle do mujhe",
-    "Study tips do yaar",
-    "Ek riddle poochho mujhse",
-    "Tanmay ke baare mein batao",
-    "Ek mazedaar fact batao",
-    "Mera mood kharaab hai",
-    "Python ke baare mein batao",
-    "Ek film recommend karo",
-    "Cricket ke baare mein batao",
-    "Ek quote do mujhe",
-    "Mujhe kuchh naya sikhao",
-    "Ek dost jaisa baat karo",
-    "Kuchh hasi-mazaak karo",
-    "Ek achhi kitaab batao",
-    "Mujhe ek brain teaser do"
+    "Mujhe ek joke sunao", "Ek chhoti si kahani likho", "Aaj ka din kaisa rahega",
+    "Mujhe motivate karo", "Ek shayari sunao", "Kuchh interesting batao",
+    "Ek puzzle do mujhe", "Study tips do yaar", "Ek riddle poochho mujhse",
+    "Tanmay ke baare mein batao", "Ek mazedaar fact batao", "Mera mood kharaab hai",
+    "Python ke baare mein batao", "Ek film recommend karo", "Cricket ke baare mein batao",
+    "Ek quote do mujhe", "Mujhe kuchh naya sikhao", "Ek dost jaisa baat karo",
+    "Kuchh hasi-mazaak karo", "Ek achhi kitaab batao", "Mujhe ek brain teaser do"
 ];
 
-/* =========================================================
-   WELCOME SCREEN
-   ========================================================= */
 function showWelcomeScreen() {
     const displayName = currentUser
-        ? (currentUser.displayName ||
-           (currentUser.email && currentUser.email.split("@")[0]) ||
-           "User")
+        ? (currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User")
         : "User";
 
     const sub = isCurrentUserAdmin()
@@ -1798,9 +1663,7 @@ function showWelcomeScreen() {
     });
 }
 
-/* =========================================================
-   NEW CHAT
-   ========================================================= */
+/* ============= NEW CHAT ============= */
 function startNewChatSession() {
     currentChatId = "chat_" + Date.now();
     sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
@@ -1824,9 +1687,7 @@ newChatBtn.addEventListener("click", () => {
     userInput.focus();
 });
 
-/* =========================================================
-   VOICE INPUT (Normal chat)
-   ========================================================= */
+/* ============= VOICE INPUT (Normal chat) ============= */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SR();
@@ -1854,9 +1715,7 @@ micBtn.addEventListener("click", () => {
     }
 });
 
-/* =========================================================
-   VOICE OUTPUT (Individual messages)
-   ========================================================= */
+/* ============= VOICE OUTPUT (Individual) ============= */
 toggleVoiceBtn.addEventListener("click", () => {
     isVoiceEnabled = !isVoiceEnabled;
     toggleVoiceBtn.innerHTML = isVoiceEnabled
@@ -1903,9 +1762,7 @@ function resetSpeakingButtons() {
     currentSpeakingButton = null;
 }
 
-/* =========================================================
-   MESSAGE BUILDER
-   ========================================================= */
+/* ============= MESSAGE BUILDER ============= */
 function buildMessageRow(text, isUser, timestamp) {
     if (!timestamp) timestamp = Date.now();
 
@@ -2016,9 +1873,7 @@ function appendAIMessage(text, shouldSpeak, qText, timestamp) {
     return row;
 }
 
-/* =========================================================
-   PERSONAL MEMORY
-   ========================================================= */
+/* ============= PERSONAL MEMORY ============= */
 async function savePersonalMemory(content) {
     if (!currentUser) return;
     await addDoc(
@@ -2028,17 +1883,11 @@ async function savePersonalMemory(content) {
     userPersonalMemoryCache.push(content);
 }
 
-/* =========================================================
-   SAVE CHAT TO FIREBASE
-   ========================================================= */
+/* ============= SAVE CHAT ============= */
 async function saveMessageToFirebase(chatId, userText, aiText) {
     if (!currentUser) return;
     try {
-        const nm =
-            currentUser.displayName ||
-            (currentUser.email && currentUser.email.split("@")[0]) ||
-            "User";
-
+        const nm = currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
         await addDoc(collection(db, "chat_messages"), {
             uid: currentUser.uid,
             userName: nm,
@@ -2049,22 +1898,18 @@ async function saveMessageToFirebase(chatId, userText, aiText) {
             aiText: aiText,
             timestamp: Date.now()
         });
-
         loadAllSidebarTopics(false);
     } catch (e) {
         console.error("Firebase save error:", e);
     }
 }
 
-/* =========================================================
-   SIDEBAR TOPICS
-   ========================================================= */
+/* ============= SIDEBAR TOPICS ============= */
 async function loadAllSidebarTopics(isInitialLoad) {
     if (!currentUser) return;
 
     try {
         historyList.innerHTML = "";
-
         const q = query(collection(db, "chat_messages"));
         const snap = await getDocs(q);
         const map = new Map();
@@ -2121,9 +1966,7 @@ function addTopicToSidebarUI(text, chatId) {
 
     const sp = document.createElement("span");
     sp.classList.add("history-text");
-    sp.innerText = text && text.length > 20
-        ? text.substring(0, 20) + "..."
-        : (text || "Chat");
+    sp.innerText = text && text.length > 20 ? text.substring(0, 20) + "..." : (text || "Chat");
 
     sp.onclick = () => {
         currentChatId = chatId;
@@ -2145,10 +1988,7 @@ function addTopicToSidebarUI(text, chatId) {
         e.stopPropagation();
         if (!confirm("Delete this chat?")) return;
 
-        const q = query(
-            collection(db, "chat_messages"),
-            where("chatId", "==", chatId)
-        );
+        const q = query(collection(db, "chat_messages"), where("chatId", "==", chatId));
         const snap = await getDocs(q);
 
         for (const ds of snap.docs) {
@@ -2171,18 +2011,13 @@ function addTopicToSidebarUI(text, chatId) {
     historyList.appendChild(w);
 }
 
-/* =========================================================
-   LOAD FULL CHAT
-   ========================================================= */
+/* ============= LOAD FULL CHAT ============= */
 async function loadFullChatSession(chatId) {
     messagesContainer.innerHTML = "";
     chatHistoryContext = [];
 
     try {
-        const q = query(
-            collection(db, "chat_messages"),
-            where("chatId", "==", chatId)
-        );
+        const q = query(collection(db, "chat_messages"), where("chatId", "==", chatId));
         const snap = await getDocs(q);
         const arr = [];
 
@@ -2206,9 +2041,7 @@ async function loadFullChatSession(chatId) {
     }
 }
 
-/* =========================================================
-   KEYBOARD SHORTCUTS
-   ========================================================= */
+/* ============= KEYBOARD ============= */
 document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
@@ -2216,21 +2049,13 @@ document.addEventListener("keydown", e => {
         startNewChatSession();
         showToast("New chat", "info");
     }
-
     if (e.key === "Escape") {
         if (callModeActive) endCallMode();
         else if (openDropdown) closeDropdown();
-        else if (pendingImage) {
-            pendingImage = null;
-            pendingImageBar.classList.add("hidden");
-        } else if (!settingsOverlay.classList.contains("hidden")) {
-            closeSettings();
-        } else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) {
-            closeSidebar();
-        }
+        else if (pendingImage) { pendingImage = null; pendingImageBar.classList.add("hidden"); }
+        else if (!settingsOverlay.classList.contains("hidden")) closeSettings();
+        else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) closeSidebar();
     }
 });
 
-/* =========================================================
-   END OF FILE
-   ========================================================= */
+/* ============= END ============= */
