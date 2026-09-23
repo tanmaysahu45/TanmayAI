@@ -1,6 +1,6 @@
 /* =========================================================
    TANMAY AI - MAIN SCRIPT
-   Version 5.0
+   Version 6.0
    Made by Tanmay Sahu
    ========================================================= */
 
@@ -112,10 +112,10 @@ const defaultUserIcon = $("default-user-icon");
 const userInput = $("user-input");
 const sendBtn = $("send-btn");
 const micBtn = $("mic-btn");
-const imageBtn = $("image-btn");
+const plusBtn = $("plus-btn");
 const imageInput = $("image-input");
-const cameraBtn = $("camera-btn");
 const cameraInput = $("camera-input");
+const fileInput = $("file-input");
 const callBtn = $("call-btn");
 const messagesContainer = $("messages-container");
 const toggleVoiceBtn = $("toggle-voice-btn");
@@ -183,12 +183,14 @@ const callOverlay = $("call-overlay");
 const callStatus = $("call-status");
 const callSub = $("call-sub");
 const callMicBtn = $("call-mic-btn");
+const callCcBtn = $("call-cc-btn");
 const callEndBtn = $("call-end-btn");
 const callWave = $("call-wave");
 const ccAiLine = $("cc-ai-line");
 const ccUserLine = $("cc-user-line");
+const callCaptions = $("call-captions");
 
-console.log("Tanmay AI v5 loaded ✓");
+console.log("Tanmay AI v6 loaded ✓");
 
 /* =========================================================
    GLOBAL STATE
@@ -218,6 +220,8 @@ let callRecognition = null;
 let callIsListening = false;
 let callHistoryContext = [];
 let callLoopTimer = null;
+let callSpeaking = false;
+let callListenRestartTimer = null;
 
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
@@ -334,6 +338,8 @@ function loadSettings() {
     const cc = localStorage.getItem("tanmay-cc");
     showCc = cc !== "off";
     if (settingCcToggle) settingCcToggle.checked = showCc;
+    if (callCcBtn) callCcBtn.classList.toggle("active", showCc);
+    if (callCaptions) callCaptions.classList.toggle("hidden-cc", !showCc);
 }
 
 loadSettings();
@@ -396,6 +402,8 @@ if (settingCcToggle) {
     settingCcToggle.addEventListener("change", e => {
         showCc = e.target.checked;
         localStorage.setItem("tanmay-cc", showCc ? "on" : "off");
+        if (callCcBtn) callCcBtn.classList.toggle("active", showCc);
+        if (callCaptions) callCaptions.classList.toggle("hidden-cc", !showCc);
     });
 }
 
@@ -535,7 +543,7 @@ function closeDropdown() {
 document.addEventListener("click", e => {
     if (!openDropdown) return;
     if (openDropdown.contains(e.target)) return;
-    if (e.target.closest(".msg-menu-btn") || e.target.closest("#header-menu-btn")) return;
+    if (e.target.closest(".msg-menu-btn") || e.target.closest("#header-menu-btn") || e.target.closest("#plus-btn")) return;
     closeDropdown();
 });
 
@@ -816,7 +824,7 @@ chatSearchInput.addEventListener("input", e => {
 });
 
 /* =========================================================
-   VIEW SWITCH (Chat / Study)
+   VIEW SWITCH
    ========================================================= */
 function switchView(view) {
     currentView = view;
@@ -858,7 +866,7 @@ studyTabs.forEach(tab => {
 });
 
 /* =========================================================
-   STUDY DATA (Notes + Formulas)
+   STUDY DATA
    ========================================================= */
 function studyKey() {
     return currentUser ? "study_" + currentUser.uid : "study_guest";
@@ -1085,11 +1093,84 @@ function renderQuiz(rawText) {
 }
 
 /* =========================================================
-   IMAGE PICKING
+   PLUS BUTTON + ATTACH MENU
    ========================================================= */
-imageBtn.addEventListener("click", () => imageInput.click());
-cameraBtn.addEventListener("click", () => cameraInput.click());
+function openAttachMenu() {
+    closeDropdown();
 
+    const dd = document.createElement("div");
+    dd.className = "attach-menu";
+
+    const items = [
+        { label: "Gallery", icon: "fa-image", action: () => imageInput.click() },
+        { label: "Camera", icon: "fa-camera", action: () => cameraInput.click() },
+        { label: "Files", icon: "fa-paperclip", action: () => fileInput.click() },
+        { label: "Paste Image", icon: "fa-paste", action: pasteImageFromClipboard }
+    ];
+
+    items.forEach(item => {
+        const b = document.createElement("button");
+        b.className = "attach-menu-item";
+        b.innerHTML =
+            '<div class="attach-icon-wrap"><i class="fa-solid ' + item.icon + '"></i></div>' +
+            '<span>' + item.label + '</span>';
+        b.onclick = ev => {
+            ev.stopPropagation();
+            closeDropdown();
+            item.action();
+        };
+        dd.appendChild(b);
+    });
+
+    document.body.appendChild(dd);
+
+    const r = plusBtn.getBoundingClientRect();
+    const mw = 210;
+    const mh = items.length * 54 + 20;
+
+    let l = r.left;
+    let t = r.top - mh - 8;
+
+    if (t < 10) t = r.bottom + 8;
+    if (l + mw > window.innerWidth - 10) l = window.innerWidth - mw - 10;
+    if (l < 10) l = 10;
+
+    dd.style.left = l + "px";
+    dd.style.top = t + "px";
+    openDropdown = dd;
+}
+
+plusBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    openAttachMenu();
+});
+
+async function pasteImageFromClipboard() {
+    try {
+        if (!navigator.clipboard || !navigator.clipboard.read) {
+            return showToast("Clipboard support nahi hai", "error");
+        }
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+            for (const type of item.types) {
+                if (type.startsWith("image/")) {
+                    const blob = await item.getType(type);
+                    const file = new File([blob], "pasted-image.png", { type: type });
+                    handleImageFile(file);
+                    return;
+                }
+            }
+        }
+        showToast("Clipboard mein koi image nahi mili", "info");
+    } catch (e) {
+        console.log("Paste error:", e);
+        showToast("Paste permission nahi mili", "error");
+    }
+}
+
+/* =========================================================
+   IMAGE HANDLING
+   ========================================================= */
 function handleImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -1116,6 +1197,18 @@ imageInput.addEventListener("change", e => {
 cameraInput.addEventListener("change", e => {
     const f = e.target.files && e.target.files[0];
     handleImageFile(f);
+    e.target.value = "";
+});
+
+fileInput.addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0];
+    if (f) {
+        if (!f.type.startsWith("image/")) {
+            showToast("Abhi sirf image support hai", "info");
+        } else {
+            handleImageFile(f);
+        }
+    }
     e.target.value = "";
 });
 
@@ -1352,21 +1445,20 @@ function openImageLightbox(src) {
 }
 
 /* =========================================================
-   CALL MODE
+   CALL MODE — barge-in + live CC + auto loop
    ========================================================= */
-function updateCc(aiText, userText) {
-    if (!showCc) {
-        ccAiLine.classList.remove("show");
-        ccUserLine.classList.remove("show");
-        return;
-    }
+function updateCc(aiText, userText, isInterim) {
+    if (!showCc) return;
+
     if (aiText !== undefined) {
         ccAiLine.innerText = aiText;
         ccAiLine.classList.toggle("show", !!aiText);
     }
+
     if (userText !== undefined) {
         ccUserLine.innerText = userText;
         ccUserLine.classList.toggle("show", !!userText);
+        ccUserLine.classList.toggle("interim", !!isInterim);
     }
 }
 
@@ -1375,12 +1467,14 @@ function clearCc() {
     ccUserLine.innerText = "";
     ccAiLine.classList.remove("show");
     ccUserLine.classList.remove("show");
+    ccUserLine.classList.remove("interim");
 }
 
 function startCallMode() {
     if (!currentUser) return showToast("Pehle login karo", "error");
 
     callModeActive = true;
+    callSpeaking = false;
     callHistoryContext = [];
     callOverlay.classList.remove("hidden");
     callStatus.innerText = "Connecting...";
@@ -1395,15 +1489,12 @@ function startCallMode() {
         return;
     }
 
+    // Greeting
     setTimeout(() => {
         if (!callModeActive) return;
         const greeting = "Namaste! Main Tanmay AI hoon. Batao, kya madad karun?";
-        updateCc(greeting, "");
-        speakCallReply(greeting, () => {
-            setTimeout(() => {
-                if (callModeActive) startCallListening();
-            }, 400);
-        });
+        updateCc(greeting, "", false);
+        speakCallReply(greeting);
     }, 500);
 }
 
@@ -1412,14 +1503,13 @@ callBtn.addEventListener("click", startCallMode);
 function endCallMode() {
     callModeActive = false;
     callIsListening = false;
+    callSpeaking = false;
     window.speechSynthesis.cancel();
-    if (callLoopTimer) {
-        clearTimeout(callLoopTimer);
-        callLoopTimer = null;
+    if (callListenRestartTimer) {
+        clearTimeout(callListenRestartTimer);
+        callListenRestartTimer = null;
     }
-    try {
-        if (callRecognition) callRecognition.stop();
-    } catch (e) {}
+    try { if (callRecognition) callRecognition.stop(); } catch (e) {}
     callOverlay.classList.add("hidden");
     callWave.classList.add("idle");
     callMicBtn.classList.remove("active");
@@ -1428,51 +1518,96 @@ function endCallMode() {
 
 callEndBtn.addEventListener("click", endCallMode);
 
+callCcBtn.addEventListener("click", () => {
+    showCc = !showCc;
+    localStorage.setItem("tanmay-cc", showCc ? "on" : "off");
+    if (settingCcToggle) settingCcToggle.checked = showCc;
+    callCcBtn.classList.toggle("active", showCc);
+    callCaptions.classList.toggle("hidden-cc", !showCc);
+    if (!showCc) {
+        ccAiLine.classList.remove("show");
+        ccUserLine.classList.remove("show");
+    } else {
+        if (ccAiLine.innerText) ccAiLine.classList.add("show");
+        if (ccUserLine.innerText) ccUserLine.classList.add("show");
+    }
+    showToast(showCc ? "Captions ON" : "Captions OFF", "info");
+});
+
+/* Setup call recognition — barge-in enabled */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     callRecognition = new SR();
-    callRecognition.continuous = false;
+    callRecognition.continuous = true;
+    callRecognition.interimResults = true;
     callRecognition.lang = "en-US";
-    callRecognition.interimResults = false;
 
     callRecognition.onstart = () => {
         callIsListening = true;
         callMicBtn.classList.add("active");
-        callWave.classList.remove("idle");
-        callStatus.innerText = "Listening...";
+        if (!callSpeaking) {
+            callWave.classList.remove("idle");
+            callStatus.innerText = "Listening...";
+        }
     };
 
-    callRecognition.onresult = async ev => {
-        const t = ev.results[0][0].transcript;
-        if (t && t.trim()) {
-            updateCc(undefined, t.trim());
-            await handleCallUserSpeech(t.trim());
+    callRecognition.onresult = (ev) => {
+        // BARGE-IN
+        if (callSpeaking && window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            callSpeaking = false;
+            callWave.classList.add("idle");
+            callStatus.innerText = "Listening...";
+        }
+
+        let interim = "";
+        let finalText = "";
+
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+            const transcript = ev.results[i][0].transcript;
+            if (ev.results[i].isFinal) {
+                finalText += transcript;
+            } else {
+                interim += transcript;
+            }
+        }
+
+        const liveText = (finalText || interim).trim();
+        if (liveText) {
+            updateCc(undefined, liveText, !finalText);
+        }
+
+        if (finalText && finalText.trim()) {
+            handleCallUserSpeech(finalText.trim());
         }
     };
 
     callRecognition.onend = () => {
         callIsListening = false;
         callMicBtn.classList.remove("active");
-        callWave.classList.add("idle");
-        if (callModeActive && callStatus.innerText === "Listening...") {
-            callStatus.innerText = "Tap mic to speak";
+
+        if (callModeActive) {
+            if (callListenRestartTimer) clearTimeout(callListenRestartTimer);
+            callListenRestartTimer = setTimeout(() => {
+                if (callModeActive && !callIsListening) {
+                    try { callRecognition.start(); } catch (e) {}
+                }
+            }, 300);
         }
     };
 
-    callRecognition.onerror = ev => {
+    callRecognition.onerror = (ev) => {
         callIsListening = false;
         callMicBtn.classList.remove("active");
-        callWave.classList.add("idle");
         console.log("Call rec error:", ev.error);
-        if (callModeActive) {
-            if (ev.error === "not-allowed") {
-                callStatus.innerText = "Mic permission denied";
-                showToast("Mic permission do", "error");
-            } else if (ev.error === "no-speech") {
-                callStatus.innerText = "Kuch suna nahi";
-            } else {
-                callStatus.innerText = "Mic error";
-            }
+
+        if (callModeActive && ev.error !== "aborted" && ev.error !== "no-speech") {
+            if (callListenRestartTimer) clearTimeout(callListenRestartTimer);
+            callListenRestartTimer = setTimeout(() => {
+                if (callModeActive && !callIsListening) {
+                    try { callRecognition.start(); } catch (e) {}
+                }
+            }, 500);
         }
     };
 }
@@ -1484,11 +1619,8 @@ function startCallListening() {
         return;
     }
     window.speechSynthesis.cancel();
-    try {
-        callRecognition.start();
-    } catch (e) {
-        console.log("Start fail:", e);
-    }
+    callSpeaking = false;
+    try { callRecognition.start(); } catch (e) {}
 }
 
 callMicBtn.addEventListener("click", () => {
@@ -1527,34 +1659,25 @@ async function handleCallUserSpeech(userText) {
 
         if (res.ok && data.reply) {
             callHistoryContext.push({ role: "assistant", content: data.reply });
-            updateCc(data.reply, undefined);
-            speakCallReply(data.reply, () => {
-                setTimeout(() => {
-                    if (callModeActive) startCallListening();
-                }, 400);
-            });
+            updateCc(data.reply, undefined, false);
+            speakCallReply(data.reply);
         } else {
             callStatus.innerText = "No response";
             const fallback = "Sorry, main samajh nahi paaya. Dobara bolo.";
-            updateCc(fallback, undefined);
-            speakCallReply(fallback, () => {
-                setTimeout(() => {
-                    if (callModeActive) startCallListening();
-                }, 400);
-            });
+            updateCc(fallback, undefined, false);
+            speakCallReply(fallback);
         }
     } catch (e) {
         console.log("Call api error:", e);
         callStatus.innerText = "Network error";
         const fallback = "Network problem hai. Thodi der baad try karo.";
-        updateCc(fallback, undefined);
+        updateCc(fallback, undefined, false);
         speakCallReply(fallback);
     }
 }
 
 function speakCallReply(text, onDone) {
     if (!("speechSynthesis" in window)) {
-        callStatus.innerText = "Tap mic";
         if (onDone) onDone();
         return;
     }
@@ -1574,18 +1697,21 @@ function speakCallReply(text, onDone) {
             voices.find(v => v.lang.startsWith("en"));
         if (pref) u.voice = pref;
 
+        callSpeaking = true;
         callStatus.innerText = "Speaking...";
         callWave.classList.remove("idle");
 
         u.onend = () => {
+            callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) callStatus.innerText = "Tap mic to speak";
+            if (callModeActive) callStatus.innerText = "Listening...";
             if (onDone) onDone();
         };
 
         u.onerror = () => {
+            callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) callStatus.innerText = "Tap mic to speak";
+            if (callModeActive) callStatus.innerText = "Listening...";
             if (onDone) onDone();
         };
 

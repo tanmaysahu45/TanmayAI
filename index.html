@@ -16,17 +16,14 @@
     <meta name="apple-mobile-web-app-title" content="Tanmay AI">
     <meta name="mobile-web-app-capable" content="yes">
 
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=6">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
-    <!-- TOAST CONTAINER -->
     <div id="toast-container"></div>
 
-    <!-- ============================================
-         LOGIN SCREEN
-         ============================================ -->
+    <!-- LOGIN -->
     <div class="login-container" id="login-container">
         <div class="login-card">
             <div class="login-logo">
@@ -42,17 +39,12 @@
         </div>
     </div>
 
-    <!-- ============================================
-         APP CONTAINER
-         ============================================ -->
+    <!-- APP -->
     <div class="app-container hidden" id="app-container">
 
-        <!-- SIDEBAR OVERLAY -->
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-        <!-- ============================================
-             SIDEBAR
-             ============================================ -->
+        <!-- SIDEBAR -->
         <aside class="sidebar collapsed" id="sidebar">
             <div class="sidebar-content">
 
@@ -105,12 +97,9 @@
             </div>
         </aside>
 
-        <!-- ============================================
-             MAIN CHAT AREA
-             ============================================ -->
+        <!-- MAIN -->
         <main class="chat-area">
 
-            <!-- HEADER -->
             <header class="chat-header">
                 <div class="header-left">
                     <button id="sidebar-toggle-btn" title="Menu">
@@ -134,14 +123,10 @@
                 </div>
             </header>
 
-            <!-- MESSAGES -->
             <div class="messages-container" id="messages-container"></div>
 
-            <!-- ============================================
-                 STUDY MODE
-                 ============================================ -->
+            <!-- STUDY MODE -->
             <div class="study-container hidden" id="study-container">
-
                 <div class="study-tabs">
                     <button class="study-tab active" data-tab="notes">
                         <i class="fa-solid fa-note-sticky"></i> Notes
@@ -154,7 +139,6 @@
                     </button>
                 </div>
 
-                <!-- NOTES PANEL -->
                 <div class="study-panel active" id="study-panel-notes">
                     <div class="study-notes-input">
                         <input type="text" id="note-title-input" placeholder="Title (jaise: Photosynthesis)">
@@ -166,7 +150,6 @@
                     <div class="study-list" id="notes-list"></div>
                 </div>
 
-                <!-- QUIZ PANEL -->
                 <div class="study-panel" id="study-panel-quiz">
                     <div class="quiz-setup">
                         <input type="text" id="quiz-topic-input" placeholder="Topic likho (jaise: Solar System)">
@@ -185,7 +168,6 @@
                     <div class="quiz-display hidden" id="quiz-display"></div>
                 </div>
 
-                <!-- FORMULA PANEL -->
                 <div class="study-panel" id="study-panel-formula">
                     <div class="formula-input">
                         <input type="text" id="formula-topic-input" placeholder="Formula ka naam (jaise: Area of Circle)">
@@ -196,15 +178,11 @@
                     </div>
                     <div class="study-list" id="formula-list"></div>
                 </div>
-
             </div>
 
-            <!-- ============================================
-                 CHAT FOOTER
-                 ============================================ -->
+            <!-- FOOTER -->
             <footer class="chat-footer" id="chat-footer">
 
-                <!-- PENDING IMAGE PREVIEW BAR -->
                 <div class="pending-image-bar hidden" id="pending-image-bar">
                     <div class="pending-thumb-wrap">
                         <img id="pending-thumb" src="" alt="">
@@ -215,18 +193,15 @@
                     <input type="text" id="pending-caption" placeholder="Caption likho... (optional)" autocomplete="off">
                 </div>
 
-                <!-- INPUT ROW -->
                 <div class="input-wrapper">
 
-                    <button id="image-btn" title="Photo bhejo">
-                        <i class="fa-solid fa-image"></i>
+                    <button id="plus-btn" title="Attach">
+                        <i class="fa-solid fa-plus"></i>
                     </button>
-                    <input type="file" id="image-input" accept="image/*" hidden>
 
-                    <button id="camera-btn" title="Camera">
-                        <i class="fa-solid fa-camera"></i>
-                    </button>
+                    <input type="file" id="image-input" accept="image/*" hidden>
                     <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+                    <input type="file" id="file-input" accept="image/*,.pdf,.txt,.doc,.docx" hidden>
 
                     <button id="mic-btn" title="Speak">
                         <i class="fa-solid fa-microphone"></i>
@@ -250,9 +225,7 @@
         </main>
     </div>
 
-    <!-- ============================================
-         CALL MODE (Voice Call with CC)
-         ============================================ -->
+    <!-- CALL MODE -->
     <div class="call-overlay hidden" id="call-overlay">
         <div class="call-screen">
 
@@ -276,10 +249,13 @@
             </div>
 
             <div class="call-controls">
-                <button class="call-btn-mute" id="call-mic-btn">
+                <button class="call-btn-mute" id="call-mic-btn" title="Mic">
                     <i class="fa-solid fa-microphone"></i>
                 </button>
-                <button class="call-btn-end" id="call-end-btn">
+                <button class="call-btn-cc active" id="call-cc-btn" title="Captions">
+                    <i class="fa-solid fa-closed-captioning"></i>
+                </button>
+                <button class="call-btn-end" id="call-end-btn" title="End">
                     <i class="fa-solid fa-phone-slash"></i>
                 </button>
             </div>
@@ -287,9 +263,7 @@
         </div>
     </div>
 
-    <!-- ============================================
-         SETTINGS MODAL
-         ============================================ -->
+    <!-- SETTINGS -->
     <div class="settings-overlay hidden" id="settings-overlay">
         <div class="settings-panel">
 
@@ -302,7 +276,6 @@
 
             <div class="settings-body">
 
-                <!-- ACCOUNT -->
                 <section class="settings-section">
                     <h3>Account</h3>
                     <div class="account-card">
@@ -315,7 +288,6 @@
                     </div>
                 </section>
 
-                <!-- INSTALL APP -->
                 <section class="settings-section" id="install-section">
                     <h3>App</h3>
                     <button class="settings-install-btn" id="settings-install-btn">
@@ -328,7 +300,6 @@
                     <p class="install-hint" id="install-hint" style="display:none;"></p>
                 </section>
 
-                <!-- APPEARANCE -->
                 <section class="settings-section">
                     <h3>Appearance</h3>
                     <div class="settings-row">
@@ -349,7 +320,6 @@
                     </div>
                 </section>
 
-                <!-- VOICE -->
                 <section class="settings-section">
                     <h3>Voice</h3>
                     <div class="settings-row">
@@ -375,7 +345,6 @@
                     </div>
                 </section>
 
-                <!-- DATA -->
                 <section class="settings-section">
                     <h3>Data</h3>
                     <button class="settings-danger-btn" id="settings-clear-history">
@@ -386,20 +355,18 @@
                     </button>
                 </section>
 
-                <!-- ABOUT -->
                 <section class="settings-section">
                     <h3>About</h3>
                     <div class="about-block">
                         <div class="about-logo">T</div>
                         <div>
                             <strong>Tanmay AI</strong>
-                            <small>Version 5.0</small>
+                            <small>Version 6.0</small>
                             <small>Made by Tanmay Sahu</small>
                         </div>
                     </div>
                 </section>
 
-                <!-- LOGOUT -->
                 <section class="settings-section">
                     <button class="settings-logout-btn" id="settings-logout-btn">
                         <i class="fa-solid fa-right-from-bracket"></i> Sign Out
@@ -410,8 +377,7 @@
         </div>
     </div>
 
-    <!-- MAIN SCRIPT -->
-    <script type="module" src="script.js?v=5"></script>
+    <script type="module" src="script.js?v=6"></script>
 
 </body>
 </html>
