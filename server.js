@@ -157,7 +157,7 @@ async function askGroq(messages) {
 
   const response =
     await groq.chat.completions.create({
-      model: "llama-3.1-70b-versatile",
+      model: "llama-3.3-70b-versatile",
       messages,
       temperature: 0.5,
       max_tokens: 4096
@@ -184,7 +184,7 @@ async function askGemini(
 
   const model =
     gemini.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.0-flash",
       systemInstruction: systemPrompt
     });
 
@@ -227,7 +227,7 @@ async function askOpenRouter(messages) {
   const response =
     await openrouter.chat.completions.create({
       model:
-        "meta-llama/llama-3.1-8b-instruct:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
       messages,
       temperature: 0.5,
       max_tokens: 4096
@@ -256,13 +256,6 @@ app.post("/api/chat", async (req, res) => {
       globalRules,
       personalMemory
     } = req.body || {};
-
-    /*
-      IMPORTANT:
-      Admin status is calculated from the email
-      on the server instead of trusting a frontend
-      isAdmin value.
-    */
 
     const admin =
       isAdminEmail(userEmail);
@@ -328,7 +321,7 @@ app.post("/api/chat", async (req, res) => {
         reply,
         provider: "Groq",
         model:
-          "llama-3.1-70b-versatile",
+          "llama-3.3-70b-versatile",
         showModel: admin
       });
 
@@ -356,7 +349,7 @@ app.post("/api/chat", async (req, res) => {
         reply,
         provider: "Gemini",
         model:
-          "gemini-1.5-flash",
+          "gemini-2.0-flash",
         showModel: admin
       });
 
@@ -383,7 +376,7 @@ app.post("/api/chat", async (req, res) => {
         reply,
         provider: "OpenRouter",
         model:
-          "meta-llama/llama-3.1-8b-instruct:free",
+          "meta-llama/llama-3.3-70b-instruct:free",
         showModel: admin
       });
 
