@@ -16,8 +16,7 @@ import {
     deleteDoc,
     doc,
     getDocs,
-    where,
-    updateDoc
+    where
 } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -104,7 +103,6 @@ let chatHistoryContext = [];
 let isInitialLoadRunning = true;
 
 let globalRulesCache = [];
-let globalRulesDocs = [];
 
 let userPersonalMemoryCache = [];
 
@@ -192,7 +190,6 @@ async function loadAllMemories() {
             );
 
         globalRulesCache = [];
-        globalRulesDocs = [];
 
         gSnap.forEach(
             d => {
@@ -204,11 +201,6 @@ async function loadAllMemories() {
                     globalRulesCache.push(
                         data.rule
                     );
-
-                    globalRulesDocs.push({
-                        id: d.id,
-                        ...data
-                    });
                 }
             }
         );
@@ -289,8 +281,6 @@ onAuthStateChanged(
             await loadAllSidebarTopics(
                 true
             );
-
-            createAdminControls();
 
             loginContainer.classList.add(
                 "hidden"
@@ -423,7 +413,7 @@ function startNewChatSession() {
 
     const welcomeText =
         isCurrentUserAdmin()
-            ? "Hello Tanmay! 👑 You are Admin. AI se kuchh bhi poochho."
+            ? "Hello Tanmay! 👑 Welcome back."
             : `Hello ${displayName}! 👋 Main Tanmay AI hoon. Main tumhari personal memory yaad rakh sakta hoon.`;
 
     messagesContainer.innerHTML = `
@@ -785,384 +775,6 @@ function appendAIMessage(
 }
 
 // =====================================================
-// ADMIN CONTROL PANEL
-// =====================================================
-
-function createAdminControls() {
-
-    if (!isCurrentUserAdmin()) {
-        return;
-    }
-
-    if (
-        document.getElementById(
-            "tanmay-admin-panel"
-        )
-    ) {
-        return;
-    }
-
-    const panel =
-        document.createElement(
-            "div"
-        );
-
-    panel.id =
-        "tanmay-admin-panel";
-
-    panel.innerHTML = `
-        <button
-            id="add-global-memory-btn"
-            class="tanmay-admin-button"
-        >
-            ➕ Add Global
-        </button>
-
-        <button
-            id="manage-global-memory-btn"
-            class="tanmay-admin-button"
-        >
-            🧠 Global Memory
-        </button>
-    `;
-
-    sidebar.prepend(
-        panel
-    );
-
-    document
-        .getElementById(
-            "add-global-memory-btn"
-        )
-        .onclick =
-        openAddGlobalMemory;
-
-    document
-        .getElementById(
-            "manage-global-memory-btn"
-        )
-        .onclick =
-        openGlobalMemoryManager;
-}
-
-// =====================================================
-// ADD GLOBAL
-// =====================================================
-
-function openAddGlobalMemory() {
-
-    if (!isCurrentUserAdmin()) {
-        return;
-    }
-
-    const information =
-        prompt(
-            "Global Knowledge mein kya add karna hai?\n\nExample:\nTanmay ke mama Manesh Sahu hain."
-        );
-
-    if (
-        information === null ||
-        !information.trim()
-    ) {
-        return;
-    }
-
-    addGlobalInformation(
-        information.trim()
-    );
-}
-
-async function addGlobalInformation(
-    information
-) {
-
-    if (!isCurrentUserAdmin()) {
-        alert(
-            "Only Admin can add Global Knowledge."
-        );
-
-        return;
-    }
-
-    try {
-
-        await addDoc(
-            collection(
-                db,
-                "global_rules"
-            ),
-            {
-                rule:
-                    information,
-
-                addedBy:
-                    currentUser.email,
-
-                timestamp:
-                    Date.now()
-            }
-        );
-
-        await loadAllMemories();
-
-        alert(
-            "✅ Global information save ho gayi."
-        );
-
-    } catch (error) {
-
-        console.error(
-            error
-        );
-
-        alert(
-            "Global information save nahi ho saki."
-        );
-    }
-}
-
-// =====================================================
-// GLOBAL MEMORY MANAGER
-// =====================================================
-
-async function openGlobalMemoryManager() {
-
-    if (!isCurrentUserAdmin()) {
-        return;
-    }
-
-    await loadAllMemories();
-
-    const overlay =
-        document.createElement(
-            "div"
-        );
-
-    overlay.className =
-        "tanmay-memory-overlay";
-
-    const box =
-        document.createElement(
-            "div"
-        );
-
-    box.className =
-        "tanmay-memory-box";
-
-    box.innerHTML = `
-        <div class="tanmay-memory-header">
-            <strong>🧠 Global Knowledge</strong>
-
-            <button
-                class="tanmay-close-memory"
-            >
-                ✕
-            </button>
-        </div>
-
-        <div
-            class="tanmay-memory-list"
-            id="tanmay-global-memory-list"
-        ></div>
-    `;
-
-    overlay.appendChild(
-        box
-    );
-
-    document.body.appendChild(
-        overlay
-    );
-
-    const list =
-        document.getElementById(
-            "tanmay-global-memory-list"
-        );
-
-    if (!globalRulesDocs.length) {
-
-        list.innerHTML =
-            `<div class="tanmay-empty-memory">
-                Abhi koi Global Knowledge nahi hai.
-            </div>`;
-
-    } else {
-
-        globalRulesDocs.forEach(
-            item => {
-
-                const row =
-                    document.createElement(
-                        "div"
-                    );
-
-                row.className =
-                    "tanmay-memory-row";
-
-                const text =
-                    document.createElement(
-                        "div"
-                    );
-
-                text.className =
-                    "tanmay-memory-text";
-
-                text.innerText =
-                    item.rule;
-
-                const buttons =
-                    document.createElement(
-                        "div"
-                    );
-
-                buttons.className =
-                    "tanmay-memory-buttons";
-
-                const editBtn =
-                    document.createElement(
-                        "button"
-                    );
-
-                editBtn.innerText =
-                    "✏️ Edit";
-
-                editBtn.onclick =
-                    async () => {
-
-                        const newValue =
-                            prompt(
-                                "Global information edit karo:",
-                                item.rule
-                            );
-
-                        if (
-                            newValue === null ||
-                            !newValue.trim()
-                        ) {
-                            return;
-                        }
-
-                        try {
-
-                            await updateDoc(
-                                doc(
-                                    db,
-                                    "global_rules",
-                                    item.id
-                                ),
-                                {
-                                    rule:
-                                        newValue.trim(),
-
-                                    updatedBy:
-                                        currentUser.email,
-
-                                    updatedAt:
-                                        Date.now()
-                                }
-                            );
-
-                            await loadAllMemories();
-
-                            row.remove();
-
-                        } catch (error) {
-
-                            console.error(
-                                error
-                            );
-
-                            alert(
-                                "Edit save nahi hua."
-                            );
-                        }
-                    };
-
-                const deleteBtn =
-                    document.createElement(
-                        "button"
-                    );
-
-                deleteBtn.innerText =
-                    "🗑️ Delete";
-
-                deleteBtn.onclick =
-                    async () => {
-
-                        if (
-                            !confirm(
-                                "Is Global information ko delete karna hai?"
-                            )
-                        ) {
-                            return;
-                        }
-
-                        try {
-
-                            await deleteDoc(
-                                doc(
-                                    db,
-                                    "global_rules",
-                                    item.id
-                                )
-                            );
-
-                            await loadAllMemories();
-
-                            row.remove();
-
-                        } catch (error) {
-
-                            console.error(
-                                error
-                            );
-
-                            alert(
-                                "Delete nahi hua."
-                            );
-                        }
-                    };
-
-                buttons.appendChild(
-                    editBtn
-                );
-
-                buttons.appendChild(
-                    deleteBtn
-                );
-
-                row.appendChild(
-                    text
-                );
-
-                row.appendChild(
-                    buttons
-                );
-
-                list.appendChild(
-                    row
-                );
-            }
-        );
-    }
-
-    box.querySelector(
-        ".tanmay-close-memory"
-    ).onclick =
-        () => overlay.remove();
-
-    overlay.onclick =
-        event => {
-
-            if (
-                event.target === overlay
-            ) {
-                overlay.remove();
-            }
-        };
-}
-
-// =====================================================
 // PERSONAL MEMORY
 // =====================================================
 
@@ -1261,73 +873,6 @@ async function sendMessage() {
 
         const learnedContent =
             match[2].trim();
-
-        if (
-            isCurrentUserAdmin()
-        ) {
-
-            const choice =
-                confirm(
-                    "Is information ko Global banana hai?\n\nOK = Global\nCancel = Sirf meri Personal Memory"
-                );
-
-            if (choice) {
-
-                await addGlobalInformation(
-                    learnedContent
-                );
-
-                const msg =
-                    "✅ Ye information Global Knowledge mein save ho gayi. Ab relevant questions par sab users ke AI ko ye information milegi.";
-
-                chatHistoryContext.push({
-                    role: "assistant",
-                    content: msg
-                });
-
-                appendAIMessage(
-                    msg,
-                    true,
-                    text
-                );
-
-                await saveMessageToFirebase(
-                    currentChatId,
-                    text,
-                    msg
-                );
-
-                return;
-
-            } else {
-
-                await savePersonalMemory(
-                    learnedContent
-                );
-
-                const msg =
-                    "✅ Ye information sirf tumhari Personal Memory mein save ho gayi.";
-
-                chatHistoryContext.push({
-                    role: "assistant",
-                    content: msg
-                });
-
-                appendAIMessage(
-                    msg,
-                    true,
-                    text
-                );
-
-                await saveMessageToFirebase(
-                    currentChatId,
-                    text,
-                    msg
-                );
-
-                return;
-            }
-        }
 
         await savePersonalMemory(
             learnedContent
@@ -1446,10 +991,6 @@ async function sendMessage() {
                 true,
                 text
             );
-
-            // =========================================
-            // MODEL INFO — ADMIN KO DIKHEGA
-            // =========================================
 
             if (
                 isCurrentUserAdmin() &&
@@ -2116,85 +1657,6 @@ adminStyle.innerHTML = `
     opacity: 0.65;
     margin: 3px 0 12px 12px;
     font-family: monospace;
-}
-
-#tanmay-admin-panel {
-    padding: 8px;
-    margin-bottom: 8px;
-}
-
-.tanmay-admin-button {
-    width: 100%;
-    border: none;
-    border-radius: 9px;
-    padding: 8px;
-    margin-bottom: 6px;
-    cursor: pointer;
-}
-
-.tanmay-memory-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,.55);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 99999;
-    padding: 18px;
-}
-
-.tanmay-memory-box {
-    width: min(650px, 100%);
-    max-height: 85vh;
-    overflow: auto;
-    border-radius: 16px;
-    padding: 16px;
-    background: var(--background, #fff);
-}
-
-.tanmay-memory-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.tanmay-close-memory {
-    border: none;
-    background: transparent;
-    font-size: 20px;
-    cursor: pointer;
-}
-
-.tanmay-memory-row {
-    border: 1px solid rgba(128,128,128,.25);
-    border-radius: 12px;
-    padding: 10px;
-    margin-bottom: 9px;
-}
-
-.tanmay-memory-text {
-    white-space: pre-wrap;
-    word-break: break-word;
-    margin-bottom: 8px;
-}
-
-.tanmay-memory-buttons {
-    display: flex;
-    gap: 7px;
-}
-
-.tanmay-memory-buttons button {
-    border: none;
-    border-radius: 8px;
-    padding: 6px 9px;
-    cursor: pointer;
-}
-
-.tanmay-empty-memory {
-    opacity: .7;
-    padding: 20px;
-    text-align: center;
 }
 
 `;
