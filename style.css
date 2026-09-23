@@ -1294,3 +1294,118 @@ body.light-mode .welcome-title {
         padding-bottom: calc(6px + env(safe-area-inset-bottom)) !important;
     }
 }
+
+
+/* ================================================================
+   PWA INSTALL + HEADER MENU
+   ================================================================ */
+
+#header-menu-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-light);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px 10px;
+    border-radius: 50%;
+    transition: background 0.2s, transform 0.2s;
+}
+
+#header-menu-btn:hover {
+    background-color: var(--hover-color);
+    transform: scale(1.08);
+}
+
+.settings-install-btn {
+    width: 100%;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #a8c7fa, #7aa7f5);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 16px rgba(168, 199, 250, 0.35);
+}
+
+.settings-install-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(168, 199, 250, 0.5);
+}
+
+.settings-install-btn i {
+    font-size: 22px;
+}
+
+.settings-install-btn div {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-install-btn strong {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.settings-install-btn small {
+    font-size: 12px;
+    font-weight: 400;
+    opacity: 0.9;
+    color: #fff;
+}
+
+.install-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 10px;
+    line-height: 1.5;
+    padding: 10px 12px;
+    background: var(--card-bg);
+    border-radius: 10px;
+    border-left: 3px solid var(--accent-color);
+}
+
+/* Header dropdown */
+.header-dropdown {
+    position: fixed;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 10px 30px var(--shadow);
+    z-index: 1000;
+    min-width: 200px;
+    animation: dropIn 0.15s ease;
+}
+
+.header-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 14px;
+    background: transparent;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: left;
+    transition: background 0.15s;
+}
+
+.header-dropdown-item:hover {
+    background: var(--hover-color);
+}
+
+.header-dropdown-item i {
+    width: 16px;
+    color: var(--text-muted);
+}

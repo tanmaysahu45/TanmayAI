@@ -61,6 +61,7 @@ const chatArea = document.querySelector(".chat-area");
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
 const chatSearchInput = document.getElementById("chat-search-input");
 const toastContainer = document.getElementById("toast-container");
+const headerMenuBtn = document.getElementById("header-menu-btn");
 
 const openSettingsBtn = document.getElementById("open-settings-btn");
 const closeSettingsBtn = document.getElementById("close-settings-btn");
@@ -77,6 +78,9 @@ const settingAutosendVoice = document.getElementById("setting-autosend-voice");
 const settingsClearHistory = document.getElementById("settings-clear-history");
 const settingsClearMemory = document.getElementById("settings-clear-memory");
 const settingsLogoutBtn = document.getElementById("settings-logout-btn");
+const settingsInstallBtn = document.getElementById("settings-install-btn");
+const installSection = document.getElementById("install-section");
+const installHint = document.getElementById("install-hint");
 
 // STATE
 let isVoiceEnabled = true;
@@ -91,9 +95,206 @@ let isInitialLoadRunning = true;
 let globalRulesCache = [];
 let userPersonalMemoryCache = [];
 let openDropdown = null;
+let deferredInstallPrompt = null;
 
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
+
+// =====================================================
+// PWA — SERVICE WORKER + INSTALL
+// =====================================================
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch(err => {
+            console.log("SW registration failed:", err);
+        });
+    });
+}
+
+function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+function isStandalone() {
+    return (
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true
+    );
+}
+
+// Capture install prompt
+window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    updateInstallUI();
+});
+
+window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    showToast("Tanmay AI installed! 🎉", "success");
+    updateInstallUI();
+});
+
+function updateInstallUI() {
+    if (isStandalone()) {
+        installSection.style.display = "none";
+        return;
+    }
+
+    installSection.style.display = "block";
+
+    if (deferredInstallPrompt) {
+        settingsInstallBtn.style.display = "flex";
+        settingsInstallBtn.innerHTML = `
+            <i class="fa-solid fa-download"></i>
+            <div>
+                <strong>Install Tanmay AI</strong>
+                <small>App ki tarah phone mein lagao</small>
+            </div>
+        `;
+        installHint.style.display = "none";
+    } else if (isIOS()) {
+        settingsInstallBtn.style.display = "none";
+        installHint.style.display = "block";
+        installHint.innerHTML = `
+            <strong>iPhone / iPad pe install karne ke liye:</strong><br>
+            1. Neeche <b>Share</b> button dabao (square with arrow)<br>
+            2. <b>Add to Home Screen</b> chuno<br>
+            3. <b>Add</b> dabao
+        `;
+    } else {
+        settingsInstallBtn.style.display = "flex";
+        settingsInstallBtn.innerHTML = `
+            <i class="fa-solid fa-download"></i>
+            <div>
+                <strong>Install Tanmay AI</strong>
+                <small>Browser menu se "Install App" chuno</small>
+            </div>
+        `;
+        installHint.style.display = "block";
+        installHint.innerHTML = `
+            Browser ke menu (⋮) mein <b>"Install App"</b> ya <b>"Add to Home Screen"</b> option dhundho.
+        `;
+    }
+}
+
+async function triggerInstall() {
+    if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice.outcome === "accepted") {
+            showToast("Installing...", "success");
+        } else {
+            showToast("Install cancelled", "info");
+        }
+        deferredInstallPrompt = null;
+        updateInstallUI();
+    } else if (isIOS()) {
+        showToast("Safari Share button se add karo", "info");
+    } else {
+        showToast("Browser menu se install karo", "info");
+    }
+}
+
+settingsInstallBtn.addEventListener("click", triggerInstall);
+
+// =====================================================
+// HEADER MENU (3-DOT)
+// =====================================================
+function closeHeaderDropdown() {
+    if (openDropdown && openDropdown.classList.contains("header-dropdown")) {
+        openDropdown.remove();
+        openDropdown = null;
+    }
+}
+
+headerMenuBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    closeDropdown();
+    closeHeaderDropdown();
+
+    const dd = document.createElement("div");
+    dd.className = "header-dropdown";
+
+    const items = [];
+
+    if (!isStandalone()) {
+        items.push({
+            label: "Install App",
+            icon: "fa-download",
+            action: () => triggerInstall()
+        });
+    }
+
+    items.push(
+        {
+            label: "Share App",
+            icon: "fa-share-nodes",
+            action: () => shareApp()
+        },
+        {
+            label: "Settings",
+            icon: "fa-gear",
+            action: () => {
+                closeSidebar();
+                openSettings();
+            }
+        },
+        {
+            label: "New Chat",
+            icon: "fa-plus",
+            action: () => startNewChatSession()
+        }
+    );
+
+    items.forEach(item => {
+        const b = document.createElement("button");
+        b.className = "header-dropdown-item";
+        b.innerHTML = `<i class="fa-solid ${item.icon}"></i> ${item.label}`;
+        b.onclick = ev => {
+            ev.stopPropagation();
+            closeHeaderDropdown();
+            item.action();
+        };
+        dd.appendChild(b);
+    });
+
+    document.body.appendChild(dd);
+
+    const rect = headerMenuBtn.getBoundingClientRect();
+    const menuWidth = 210;
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + 6;
+
+    if (left < 10) left = 10;
+    if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
+
+    dd.style.left = left + "px";
+    dd.style.top = top + "px";
+
+    openDropdown = dd;
+});
+
+async function shareApp() {
+    const url = window.location.origin + window.location.pathname;
+    const shareData = {
+        title: "Tanmay AI",
+        text: "Dekh, ye Tanmay AI hai — ek personal AI assistant!",
+        url: url
+    };
+
+    if (navigator.share) {
+        try {
+            await navigator.share(shareData);
+        } catch (e) {
+            if (e.name !== "AbortError") {
+                await copyToClipboard(url);
+            }
+        }
+    } else {
+        await copyToClipboard(url);
+    }
+}
 
 // =====================================================
 // SETTINGS STORAGE
@@ -123,8 +324,8 @@ function loadSettings() {
 }
 
 loadSettings();
+updateInstallUI();
 
-// THEME
 function applyTheme(theme) {
     if (theme === "light") {
         document.body.classList.add("light-mode");
@@ -135,6 +336,9 @@ function applyTheme(theme) {
     }
     localStorage.setItem("tanmay-theme", theme);
     settingTheme.value = theme;
+
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "light" ? "#f5f5f7" : "#131314");
 }
 
 themeToggleBtn.addEventListener("click", () => {
@@ -184,9 +388,6 @@ function showToast(message, type = "success") {
     }, 2600);
 }
 
-// =====================================================
-// TIME
-// =====================================================
 function formatTime(ts) {
     const d = new Date(ts);
     let h = d.getHours();
@@ -227,9 +428,6 @@ function removeLoader() {
     }
 }
 
-// =====================================================
-// ADMIN
-// =====================================================
 function isCurrentUserAdmin() {
     return !!(
         currentUser &&
@@ -265,40 +463,41 @@ async function copyToClipboard(text) {
 async function shareMessage(text) {
     if (navigator.share) {
         try {
-            await navigator.share({
-                title: "Tanmay AI",
-                text: text
-            });
+            await navigator.share({ title: "Tanmay AI", text: text });
         } catch (e) {
-            if (e.name !== "AbortError") {
-                copyToClipboard(text);
-            }
+            if (e.name !== "AbortError") copyToClipboard(text);
         }
     } else {
         copyToClipboard(text);
-        showToast("Share not supported — copied instead", "info");
     }
 }
 
 // =====================================================
-// DROPDOWN
+// DROPDOWN (MESSAGE MENU)
 // =====================================================
 function closeDropdown() {
-    if (openDropdown) {
+    if (openDropdown && !openDropdown.classList.contains("header-dropdown")) {
         openDropdown.remove();
         openDropdown = null;
     }
 }
 
 document.addEventListener("click", e => {
-    if (openDropdown && !openDropdown.contains(e.target)) {
-        const isBtn = e.target.closest(".msg-menu-btn");
-        if (!isBtn) closeDropdown();
+    if (!openDropdown) return;
+    if (openDropdown.contains(e.target)) return;
+    const isMsgBtn = e.target.closest(".msg-menu-btn");
+    const isHeaderBtn = e.target.closest("#header-menu-btn");
+    if (isMsgBtn || isHeaderBtn) return;
+    if (openDropdown.classList.contains("header-dropdown")) {
+        closeHeaderDropdown();
+    } else {
+        closeDropdown();
     }
 });
 
 function openMenu(anchorBtn, menuItems, isUserMsg) {
     closeDropdown();
+    closeHeaderDropdown();
 
     const dropdown = document.createElement("div");
     dropdown.className = "msg-dropdown";
@@ -319,16 +518,12 @@ function openMenu(anchorBtn, menuItems, isUserMsg) {
 
     const rect = anchorBtn.getBoundingClientRect();
     const menuWidth = 180;
-    let left = isUserMsg
-        ? rect.right - menuWidth
-        : rect.left;
+    let left = isUserMsg ? rect.right - menuWidth : rect.left;
     let top = rect.bottom + 6;
 
-    // Keep on screen
     if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
     if (left < 10) left = 10;
 
-    // If not enough space below, show above
     const menuHeight = menuItems.length * 42 + 12;
     let dropUp = false;
     if (top + menuHeight > window.innerHeight - 10) {
@@ -338,7 +533,6 @@ function openMenu(anchorBtn, menuItems, isUserMsg) {
 
     dropdown.style.left = left + "px";
     dropdown.style.top = top + "px";
-    dropdown.style.position = "fixed";
     if (dropUp) dropdown.classList.add("drop-up");
 
     openDropdown = dropdown;
@@ -414,9 +608,6 @@ onAuthStateChanged(auth, async user => {
     }
 });
 
-// =====================================================
-// LOGIN
-// =====================================================
 googleLoginBtn.addEventListener("click", () => {
     const isWebView =
         /wv|WebView/i.test(window.navigator.userAgent) ||
@@ -450,6 +641,7 @@ settingsLogoutBtn.addEventListener("click", () => {
 function openSettings() {
     settingsOverlay.classList.remove("hidden");
     document.body.style.overflow = "hidden";
+    updateInstallUI();
 }
 
 function closeSettings() {
@@ -542,7 +734,7 @@ chatSearchInput.addEventListener("input", e => {
 });
 
 // =====================================================
-// SUGGESTION CHIPS
+// CHIPS
 // =====================================================
 const CHIP_POOL = [
     "Mujhe ek joke sunao",
@@ -607,9 +799,6 @@ function showWelcomeScreen() {
     });
 }
 
-// =====================================================
-// NEW CHAT
-// =====================================================
 function startNewChatSession() {
     currentChatId = "chat_" + Date.now();
     sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
@@ -630,7 +819,7 @@ newChatBtn.addEventListener("click", () => {
 });
 
 // =====================================================
-// VOICE INPUT
+// VOICE
 // =====================================================
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -660,9 +849,6 @@ micBtn.addEventListener("click", () => {
     }
 });
 
-// =====================================================
-// VOICE OUTPUT
-// =====================================================
 toggleVoiceBtn.addEventListener("click", () => {
     isVoiceEnabled = !isVoiceEnabled;
     toggleVoiceBtn.innerHTML = isVoiceEnabled
@@ -710,7 +896,7 @@ function resetSpeakingButtons() {
 }
 
 // =====================================================
-// MESSAGE BUILDER
+// MESSAGES
 // =====================================================
 function buildMessageRow(text, isUser, timestamp) {
     if (!timestamp) timestamp = Date.now();
@@ -733,11 +919,9 @@ function buildMessageRow(text, isUser, timestamp) {
     bubble.appendChild(timeNode);
     row.appendChild(bubble);
 
-    // Actions bar
     const actions = document.createElement("div");
     actions.classList.add("msg-actions", isUser ? "user-actions" : "ai-actions");
 
-    // For AI: quick speak button
     if (!isUser) {
         const speakBtn = document.createElement("button");
         speakBtn.className = "msg-action-btn speak-btn";
@@ -750,7 +934,6 @@ function buildMessageRow(text, isUser, timestamp) {
         actions.appendChild(speakBtn);
     }
 
-    // Quick copy button
     const copyBtn = document.createElement("button");
     copyBtn.className = "msg-action-btn";
     copyBtn.title = "Copy";
@@ -761,7 +944,6 @@ function buildMessageRow(text, isUser, timestamp) {
     };
     actions.appendChild(copyBtn);
 
-    // 3-dot menu button
     const menuBtn = document.createElement("button");
     menuBtn.className = "msg-action-btn msg-menu-btn";
     menuBtn.title = "More";
@@ -774,7 +956,6 @@ function buildMessageRow(text, isUser, timestamp) {
 
     row.appendChild(actions);
 
-    // Click on bubble → show actions
     bubble.onclick = e => {
         if (e.target.closest("button")) return;
         if (window.getSelection().toString()) return;
@@ -786,16 +967,8 @@ function buildMessageRow(text, isUser, timestamp) {
 
 function openMessageMenu(anchorBtn, text, isUser) {
     const items = [
-        {
-            label: "Copy",
-            icon: "fa-copy",
-            action: () => copyToClipboard(text)
-        },
-        {
-            label: "Share",
-            icon: "fa-share",
-            action: () => shareMessage(text)
-        }
+        { label: "Copy", icon: "fa-copy", action: () => copyToClipboard(text) },
+        { label: "Share", icon: "fa-share", action: () => shareMessage(text) }
     ];
 
     if (!isUser) {
@@ -815,9 +988,7 @@ function openMessageMenu(anchorBtn, text, isUser) {
     items.push({
         label: "Select Text",
         icon: "fa-text-height",
-        action: () => {
-            showToast("Long-press / drag to select", "info");
-        }
+        action: () => showToast("Long-press / drag to select", "info")
     });
 
     openMenu(anchorBtn, items, isUser);
@@ -940,12 +1111,7 @@ async function sendMessage() {
 
             appendAIMessage(aiResponse, true, text);
 
-            if (
-                isCurrentUserAdmin() &&
-                data.showModel &&
-                data.provider &&
-                data.model
-            ) {
+            if (isCurrentUserAdmin() && data.showModel && data.provider && data.model) {
                 const modelInfo = document.createElement("div");
                 modelInfo.className = "admin-model-info";
                 modelInfo.innerText = "🤖 " + data.provider + " • " + data.model;
@@ -1047,10 +1213,7 @@ async function loadAllSidebarTopics(isInitialLoad) {
 
         const chatList = Array.from(chatMap.values());
         chatList.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
-
-        chatList.forEach(item => {
-            addTopicToSidebarUI(item.firstUserText, item.chatId);
-        });
+        chatList.forEach(item => addTopicToSidebarUI(item.firstUserText, item.chatId));
 
         const term = chatSearchInput.value.toLowerCase().trim();
         if (term) {
@@ -1063,7 +1226,6 @@ async function loadAllSidebarTopics(isInitialLoad) {
         if (isInitialLoad) {
             const savedChatId = sessionStorage.getItem(CHAT_SESSION_KEY);
             const chatExists = savedChatId && chatMap.has(savedChatId);
-
             if (chatExists) {
                 currentChatId = savedChatId;
                 await loadFullChatSession(currentChatId);
@@ -1134,9 +1296,6 @@ function addTopicToSidebarUI(firstQuestion, chatId) {
     historyList.appendChild(wrapper);
 }
 
-// =====================================================
-// LOAD CHAT
-// =====================================================
 async function loadFullChatSession(chatId) {
     messagesContainer.innerHTML = "";
     chatHistoryContext = [];
@@ -1156,7 +1315,6 @@ async function loadFullChatSession(chatId) {
         for (const data of localMessages) {
             appendUserMessage(data.userText, data.timestamp - 1000);
             chatHistoryContext.push({ role: "user", content: data.userText });
-
             appendAIMessage(data.aiText, false, data.userText, data.timestamp);
             chatHistoryContext.push({ role: "assistant", content: data.aiText });
         }
@@ -1177,8 +1335,13 @@ document.addEventListener("keydown", e => {
         showToast("New chat", "info");
     }
     if (e.key === "Escape") {
-        if (openDropdown) closeDropdown();
-        else if (!settingsOverlay.classList.contains("hidden")) closeSettings();
-        else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) closeSidebar();
+        if (openDropdown) {
+            if (openDropdown.classList.contains("header-dropdown")) closeHeaderDropdown();
+            else closeDropdown();
+        } else if (!settingsOverlay.classList.contains("hidden")) {
+            closeSettings();
+        } else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) {
+            closeSidebar();
+        }
     }
 });

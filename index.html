@@ -4,10 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#131314">
+    <meta name="description" content="Tanmay AI - Your personal AI assistant by Tanmay Sahu">
     <title>Tanmay AI</title>
 
+    <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/512/artificial-intelligence.png">
     <link rel="apple-touch-icon" href="https://img.icons8.com/fluent/512/artificial-intelligence.png">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tanmay AI">
+    <meta name="mobile-web-app-capable" content="yes">
 
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -97,6 +104,9 @@
                     <button id="toggle-voice-btn" title="Voice">
                         <i class="fa-solid fa-volume-high"></i>
                     </button>
+                    <button id="header-menu-btn" title="More">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
                 </div>
             </header>
 
@@ -129,7 +139,6 @@
 
             <div class="settings-body">
 
-                <!-- ACCOUNT -->
                 <section class="settings-section">
                     <h3>Account</h3>
                     <div class="account-card">
@@ -142,7 +151,18 @@
                     </div>
                 </section>
 
-                <!-- APPEARANCE -->
+                <section class="settings-section" id="install-section">
+                    <h3>App</h3>
+                    <button class="settings-install-btn" id="settings-install-btn">
+                        <i class="fa-solid fa-download"></i>
+                        <div>
+                            <strong>Install Tanmay AI</strong>
+                            <small>App ki tarah phone mein lagao</small>
+                        </div>
+                    </button>
+                    <p class="install-hint" id="install-hint" style="display:none;"></p>
+                </section>
+
                 <section class="settings-section">
                     <h3>Appearance</h3>
                     <div class="settings-row">
@@ -163,7 +183,6 @@
                     </div>
                 </section>
 
-                <!-- VOICE -->
                 <section class="settings-section">
                     <h3>Voice</h3>
                     <div class="settings-row">
@@ -182,7 +201,6 @@
                     </div>
                 </section>
 
-                <!-- DATA -->
                 <section class="settings-section">
                     <h3>Data</h3>
                     <button class="settings-danger-btn" id="settings-clear-history">
@@ -193,20 +211,18 @@
                     </button>
                 </section>
 
-                <!-- ABOUT -->
                 <section class="settings-section">
                     <h3>About</h3>
                     <div class="about-block">
                         <div class="about-logo">T</div>
                         <div>
                             <strong>Tanmay AI</strong>
-                            <small>Version 2.0</small>
+                            <small>Version 2.1</small>
                             <small>Made by Tanmay Sahu</small>
                         </div>
                     </div>
                 </section>
 
-                <!-- LOGOUT -->
                 <section class="settings-section">
                     <button class="settings-logout-btn" id="settings-logout-btn">
                         <i class="fa-solid fa-right-from-bracket"></i> Sign Out
