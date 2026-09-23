@@ -1,6 +1,6 @@
 /* =========================================================
    TANMAY AI - MAIN SCRIPT
-   Version 7.1
+   Version 7.2
    Made by Tanmay Sahu
    ========================================================= */
 
@@ -159,7 +159,7 @@ const callWave = $("call-wave");
 const callTranscript = $("call-transcript");
 const callTranscriptEmpty = $("call-transcript-empty");
 
-console.log("Tanmay AI v7.1 loaded ✓");
+console.log("Tanmay AI v7.2 loaded ✓");
 
 /* ============= STATE ============= */
 let isVoiceEnabled = true;
@@ -187,10 +187,10 @@ let callRecognition = null;
 let callIsListening = false;
 let callHistoryContext = [];
 let callSpeaking = false;
-let callKeepAliveTimer = null;
 let callManuallyStopped = false;
 let callChatId = null;
-let callSavedCount = 0;
+let callInterimBubble = null;
+let callFirstUserMessage = null;
 
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
@@ -1268,7 +1268,7 @@ function openImageLightbox(src) {
 }
 
 /* =========================================================
-   CALL MODE — auto listen, save to Firebase, short answers
+   CALL MODE — AI bolte waqt mic OFF
    ========================================================= */
 
 function callAddBubble(text, isUser, isInterim) {
@@ -1278,22 +1278,25 @@ function callAddBubble(text, isUser, isInterim) {
         callTranscriptEmpty.style.display = "none";
     }
 
-    // Agar same role ka last bubble hai aur interim hai, usko replace karo
     if (isUser && isInterim) {
-        const last = callTranscript.querySelector(".call-bubble-user.interim:last-child");
-        if (last) {
-            last.querySelector(".call-bubble-text").innerText = text;
-            callTranscript.scrollTop = callTranscript.scrollHeight;
-            return;
+        if (!callInterimBubble || !callInterimBubble.parentNode) {
+            callInterimBubble = document.createElement("div");
+            callInterimBubble.className = "call-bubble call-bubble-user interim";
+            callInterimBubble.innerHTML =
+                '<span class="call-bubble-label">You</span>' +
+                '<div class="call-bubble-text"></div>';
+            callTranscript.appendChild(callInterimBubble);
         }
+        callInterimBubble.querySelector(".call-bubble-text").innerText = text;
+        callTranscript.scrollTop = callTranscript.scrollHeight;
+        return;
     }
 
-    // Interim tha, ab final bana → usi bubble ko final karo
     if (isUser && !isInterim) {
-        const lastInterim = callTranscript.querySelector(".call-bubble-user.interim:last-child");
-        if (lastInterim) {
-            lastInterim.classList.remove("interim");
-            lastInterim.querySelector(".call-bubble-text").innerText = text;
+        if (callInterimBubble && callInterimBubble.parentNode) {
+            callInterimBubble.classList.remove("interim");
+            callInterimBubble.querySelector(".call-bubble-text").innerText = text;
+            callInterimBubble = null;
             callTranscript.scrollTop = callTranscript.scrollHeight;
             return;
         }
@@ -1301,18 +1304,10 @@ function callAddBubble(text, isUser, isInterim) {
 
     const bubble = document.createElement("div");
     bubble.className = "call-bubble " + (isUser ? "call-bubble-user" : "call-bubble-ai");
-    if (isUser && isInterim) bubble.classList.add("interim");
-
-    const label = document.createElement("span");
-    label.className = "call-bubble-label";
-    label.innerText = isUser ? "You" : "Tanmay AI";
-
-    const textEl = document.createElement("div");
-    textEl.className = "call-bubble-text";
-    textEl.innerText = text;
-
-    bubble.appendChild(label);
-    bubble.appendChild(textEl);
+    bubble.innerHTML =
+        '<span class="call-bubble-label">' + (isUser ? "You" : "Tanmay AI") + '</span>' +
+        '<div class="call-bubble-text"></div>';
+    bubble.querySelector(".call-bubble-text").innerText = text;
     callTranscript.appendChild(bubble);
 
     requestAnimationFrame(() => {
@@ -1323,30 +1318,26 @@ function callAddBubble(text, isUser, isInterim) {
 function callClearTranscript() {
     if (!callTranscript) return;
     callTranscript.innerHTML = "";
+    callInterimBubble = null;
     if (callTranscriptEmpty) {
         callTranscriptEmpty.style.display = "flex";
         callTranscript.appendChild(callTranscriptEmpty);
     }
 }
 
-function startCallKeepAlive() {
-    stopCallKeepAlive();
-    callKeepAliveTimer = setInterval(() => {
-        if (!callModeActive) return;
-        if (callManuallyStopped) return;
-        if (!callIsListening) {
-            try {
-                if (callRecognition) callRecognition.start();
-            } catch (e) {}
-        }
-    }, 400);
+function stopCallRecognition() {
+    try { if (callRecognition) callRecognition.stop(); } catch (e) {}
+    callIsListening = false;
+    callMicBtn.classList.remove("active");
 }
 
-function stopCallKeepAlive() {
-    if (callKeepAliveTimer) {
-        clearInterval(callKeepAliveTimer);
-        callKeepAliveTimer = null;
-    }
+function startCallListening() {
+    if (!callModeActive) return;
+    if (callManuallyStopped) return;
+    if (callSpeaking) return;
+    if (callIsListening) return;
+    if (!callRecognition) return;
+    try { callRecognition.start(); } catch (e) {}
 }
 
 function startCallMode() {
@@ -1359,10 +1350,11 @@ function startCallMode() {
     callModeActive = true;
     callSpeaking = false;
     callManuallyStopped = false;
+    callIsListening = false;
     callHistoryContext = [];
-    callSavedCount = 0;
+    callFirstUserMessage = null;
 
-    // Naya chat ID — sidebar mein dikhega
+    // Naya call chat ID
     callChatId = "call_" + Date.now();
     sessionStorage.setItem(CHAT_SESSION_KEY, callChatId);
     currentChatId = callChatId;
@@ -1371,23 +1363,20 @@ function startCallMode() {
     callStatus.innerText = "Connecting...";
     callSub.innerText = "Voice Call Mode";
     callWave.classList.add("idle");
-    callMicBtn.classList.add("active");
-    callIsListening = false;
+    callMicBtn.classList.remove("active");
     callClearTranscript();
-
-    setTimeout(() => {
-        if (!callModeActive) return;
-        startCallListening();
-        startCallKeepAlive();
-    }, 200);
 
     setTimeout(() => {
         if (!callModeActive) return;
         const greeting = "Namaste! Main Tanmay AI hoon. Batao kya jaanna hai?";
         callAddBubble(greeting, false, false);
         callHistoryContext.push({ role: "assistant", content: greeting });
+
+        // Greeting save karo (agar user kuch bhi bole)
+        callFirstUserMessage = null;
+
         speakCallReply(greeting);
-    }, 900);
+    }, 700);
 }
 
 callBtn.addEventListener("click", startCallMode);
@@ -1397,14 +1386,18 @@ function endCallMode() {
     callIsListening = false;
     callSpeaking = false;
     callManuallyStopped = true;
-    stopCallKeepAlive();
-    window.speechSynthesis.cancel();
-    try { if (callRecognition) callRecognition.stop(); } catch (e) {}
+
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    setTimeout(() => { try { window.speechSynthesis.cancel(); } catch (e) {} }, 50);
+    setTimeout(() => { try { window.speechSynthesis.cancel(); } catch (e) {} }, 150);
+
+    stopCallRecognition();
+
     callOverlay.classList.add("hidden");
     callWave.classList.add("idle");
     callMicBtn.classList.remove("active");
 
-    // Sidebar refresh — naya call chat dikh jaye
+    // Sidebar refresh
     setTimeout(() => {
         loadAllSidebarTopics(false);
     }, 500);
@@ -1423,7 +1416,6 @@ callCcBtn.addEventListener("click", () => {
     showToast(showCc ? "Live chat ON" : "Live chat OFF", "info");
 });
 
-/* Setup call recognition */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     callRecognition = new SR();
@@ -1435,15 +1427,15 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     callRecognition.onstart = () => {
         callIsListening = true;
         callMicBtn.classList.add("active");
-        if (!callSpeaking) {
-            callWave.classList.remove("idle");
-            if (callStatus.innerText !== "Thinking...") {
-                callStatus.innerText = "Listening...";
-            }
+        callWave.classList.remove("idle");
+        if (!callSpeaking && callStatus.innerText !== "Thinking...") {
+            callStatus.innerText = "Listening...";
         }
     };
 
     callRecognition.onresult = (ev) => {
+        if (callSpeaking) return;
+
         let interim = "";
         let finalText = "";
 
@@ -1456,22 +1448,22 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
             }
         }
 
-        // Interim live dikhao
         if (interim.trim() && !finalText.trim()) {
             callAddBubble(interim.trim(), true, true);
         }
 
-        // Final mila — barge-in + process
         if (finalText && finalText.trim()) {
-            // AI bol raha ho to turant ruk
-            if (window.speechSynthesis.speaking || callSpeaking) {
-                try { window.speechSynthesis.cancel(); } catch (e) {}
-                callSpeaking = false;
-                callWave.classList.add("idle");
+            const cleanText = finalText.trim();
+            if (cleanText.length < 2) return;
+            callAddBubble(cleanText, true, false);
+
+            // Pehla user message yaad rakho
+            if (!callFirstUserMessage) {
+                callFirstUserMessage = cleanText;
             }
 
-            callAddBubble(finalText.trim(), true, false);
-            handleCallUserSpeech(finalText.trim());
+            stopCallRecognition();
+            handleCallUserSpeech(cleanText);
         }
     };
 
@@ -1479,12 +1471,12 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
         callIsListening = false;
         callMicBtn.classList.remove("active");
 
-        if (callModeActive && !callManuallyStopped) {
+        if (callModeActive && !callManuallyStopped && !callSpeaking) {
             setTimeout(() => {
-                if (callModeActive && !callIsListening && !callManuallyStopped) {
+                if (callModeActive && !callIsListening && !callManuallyStopped && !callSpeaking) {
                     try { callRecognition.start(); } catch (e) {}
                 }
-            }, 150);
+            }, 200);
         }
     };
 
@@ -1493,44 +1485,38 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
         callMicBtn.classList.remove("active");
         console.log("Call rec error:", ev.error);
 
-        if (callModeActive && !callManuallyStopped && ev.error !== "aborted") {
+        if (callModeActive && !callManuallyStopped && !callSpeaking && ev.error !== "aborted") {
             setTimeout(() => {
-                if (callModeActive && !callIsListening && !callManuallyStopped) {
+                if (callModeActive && !callIsListening && !callManuallyStopped && !callSpeaking) {
                     try { callRecognition.start(); } catch (e) {}
                 }
-            }, 300);
+            }, 400);
         }
     };
-}
-
-function startCallListening() {
-    if (!callModeActive) return;
-    if (callIsListening) return;
-    if (!callRecognition) {
-        callStatus.innerText = "Mic support nahi";
-        return;
-    }
-    try {
-        callRecognition.start();
-    } catch (e) {}
 }
 
 callMicBtn.addEventListener("click", () => {
     if (!callModeActive) return;
 
+    if (callSpeaking) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+        callSpeaking = false;
+        callWave.classList.add("idle");
+        callStatus.innerText = "Listening...";
+        setTimeout(() => startCallListening(), 200);
+        return;
+    }
+
     if (callManuallyStopped) {
         callManuallyStopped = false;
         callMicBtn.classList.add("active");
         startCallListening();
-        startCallKeepAlive();
         callStatus.innerText = "Listening...";
         return;
     }
 
     callManuallyStopped = true;
-    try { callRecognition.stop(); } catch (e) {}
-    callIsListening = false;
-    callMicBtn.classList.remove("active");
+    stopCallRecognition();
     callWave.classList.add("idle");
     callStatus.innerText = "Muted — tap mic to resume";
 });
@@ -1539,8 +1525,6 @@ async function handleCallUserSpeech(userText) {
     callStatus.innerText = "Thinking...";
     callWave.classList.add("idle");
 
-    // User message save
-    const userMsgIndex = callHistoryContext.length;
     callHistoryContext.push({ role: "user", content: userText });
 
     try {
@@ -1551,7 +1535,7 @@ async function handleCallUserSpeech(userText) {
                 messages: [
                     {
                         role: "user",
-                        content: "VOICE CALL MODE: Answer in SHORT. Max 2-3 sentences. Be conversational and natural like a phone call. No long lists, no markdown, no emojis. Point-wise jawab mat do. Sirf kaam ki baat bolo."
+                        content: "VOICE CALL: Answer in 1-2 short sentences only. Phone call ki tarah natural. Koi list, koi bullet, koi heading nahi. Sirf seedha jawab. Max 25 words."
                     },
                     ...callHistoryContext.slice(-6)
                 ],
@@ -1569,31 +1553,40 @@ async function handleCallUserSpeech(userText) {
             callHistoryContext.push({ role: "assistant", content: aiReply });
             callAddBubble(aiReply, false, false);
 
-            // Firebase mein save karo (call chat ke andar)
-            await saveMessageToFirebase(callChatId, userText, aiReply);
+            // SAVE — pehle user message se chat ID set
+            if (callFirstUserMessage) {
+                await saveMessageToFirebase(callChatId, userText, aiReply);
+            }
 
             speakCallReply(aiReply);
         } else {
             callStatus.innerText = "No response";
-            const fallback = "Sorry samajh nahi aaya. Dobara bolo.";
+            const fallback = "Samajh nahi aaya. Dobara bolo.";
             callAddBubble(fallback, false, false);
             callHistoryContext.push({ role: "assistant", content: fallback });
-            await saveMessageToFirebase(callChatId, userText, fallback);
+            if (callFirstUserMessage) {
+                await saveMessageToFirebase(callChatId, userText, fallback);
+            }
             speakCallReply(fallback);
         }
     } catch (e) {
         console.log("Call api error:", e);
         callStatus.innerText = "Network error";
-        const fallback = "Network problem hai. Thodi der baad try karo.";
+        const fallback = "Network problem hai. Baad mein try karo.";
         callAddBubble(fallback, false, false);
         callHistoryContext.push({ role: "assistant", content: fallback });
-        await saveMessageToFirebase(callChatId, userText, fallback);
+        if (callFirstUserMessage) {
+            await saveMessageToFirebase(callChatId, userText, fallback);
+        }
         speakCallReply(fallback);
     }
 }
 
 function speakCallReply(text) {
-    if (!("speechSynthesis" in window)) return;
+    if (!("speechSynthesis" in window)) {
+        setTimeout(() => startCallListening(), 500);
+        return;
+    }
 
     const doSpeak = () => {
         try { window.speechSynthesis.cancel(); } catch (e) {}
@@ -1615,25 +1608,23 @@ function speakCallReply(text) {
         callStatus.innerText = "Speaking...";
         callWave.classList.remove("idle");
 
+        stopCallRecognition();
+
         u.onend = () => {
             callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) {
+            if (callModeActive && !callManuallyStopped) {
                 callStatus.innerText = "Listening...";
-                if (!callIsListening && !callManuallyStopped) {
-                    startCallListening();
-                }
+                setTimeout(() => startCallListening(), 300);
             }
         };
 
         u.onerror = () => {
             callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) {
+            if (callModeActive && !callManuallyStopped) {
                 callStatus.innerText = "Listening...";
-                if (!callIsListening && !callManuallyStopped) {
-                    startCallListening();
-                }
+                setTimeout(() => startCallListening(), 300);
             }
         };
 
@@ -2003,7 +1994,6 @@ function addTopicToSidebarUI(text, chatId) {
     const sp = document.createElement("span");
     sp.classList.add("history-text");
 
-    // Call chat ho to phone icon
     const isCall = chatId.indexOf("call_") === 0;
     sp.innerText = (isCall ? "📞 " : "") + (text && text.length > 18 ? text.substring(0, 18) + "..." : (text || "Chat"));
 
