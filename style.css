@@ -1,11 +1,12 @@
-/* ==========================================================================
-   1. GLOBAL RESET & COLORS
-   ========================================================================== */
+/* ================================================================
+   RESET & THEME VARIABLES
+   ================================================================ */
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    -webkit-tap-highlight-color: transparent;
 }
 
 :root {
@@ -18,6 +19,24 @@
     --input-bg: #1e1f20;
     --hover-color: #2b2c2d;
     --border-color: #3c3d3e;
+    --card-bg: #202124;
+    --user-msg-bg: #303134;
+    --shadow: rgba(0,0,0,0.5);
+}
+
+body.light-mode {
+    --bg-dark: #f5f5f7;
+    --sidebar-bg: #ffffff;
+    --chat-bg: #fafafa;
+    --text-light: #1a1a1a;
+    --text-muted: #666666;
+    --accent-color: #1a73e8;
+    --input-bg: #ffffff;
+    --hover-color: #e8e8e8;
+    --border-color: #e0e0e0;
+    --card-bg: #ffffff;
+    --user-msg-bg: #e8f0fe;
+    --shadow: rgba(0,0,0,0.1);
 }
 
 body {
@@ -26,16 +45,50 @@ body {
     display: flex;
     height: 100vh;
     width: 100vw;
-    overflow-y: auto;
+    overflow: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.hidden {
-    display: none !important;
+.hidden { display: none !important; }
+
+/* ================================================================
+   TOAST
+   ================================================================ */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
 }
 
-/* ==========================================================================
-   2. PREMIUM GOOGLE LOGIN SCREEN
-   ========================================================================== */
+.toast {
+    background: var(--card-bg);
+    color: var(--text-light);
+    padding: 12px 20px;
+    border-radius: 12px;
+    border-left: 4px solid var(--accent-color);
+    box-shadow: 0 8px 24px var(--shadow);
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0;
+    transform: translateX(30px);
+    transition: opacity 0.3s, transform 0.3s;
+    max-width: 320px;
+    pointer-events: auto;
+}
+
+.toast.show { opacity: 1; transform: translateX(0); }
+.toast.toast-success { border-left-color: #34c759; }
+.toast.toast-error { border-left-color: #ff3b30; }
+.toast.toast-info { border-left-color: var(--accent-color); }
+
+/* ================================================================
+   LOGIN SCREEN
+   ================================================================ */
 .login-container {
     width: 100%;
     height: 100vh;
@@ -43,17 +96,18 @@ body {
     align-items: center;
     justify-content: center;
     background-color: var(--bg-dark);
+    padding: 20px;
 }
 
 .login-card {
     background-color: var(--sidebar-bg);
     border: 1px solid var(--border-color);
-    padding: 40px;
+    padding: 40px 30px;
     border-radius: 24px;
     text-align: center;
     max-width: 400px;
-    width: 90%;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    width: 100%;
+    box-shadow: 0 8px 24px var(--shadow);
     animation: fadeIn 0.5s ease;
 }
 
@@ -61,18 +115,25 @@ body {
     width: 90px;
     height: 90px;
     margin-bottom: 20px;
+    animation: floatY 3s ease-in-out infinite;
+}
+
+@keyframes floatY {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
 }
 
 .login-card h1 {
     font-size: 24px;
     margin-bottom: 10px;
-    color: #fff;
+    color: var(--text-light);
 }
 
-.login-card p {
+.login-tagline {
     color: var(--text-muted);
     font-size: 14px;
     margin-bottom: 30px;
+    line-height: 1.5;
 }
 
 #google-login-btn {
@@ -90,29 +151,33 @@ body {
     justify-content: center;
     gap: 14px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    transition: background 0.2s;
+    transition: transform 0.2s, background 0.2s;
 }
 
-#google-login-btn:hover {
-    background-color: #e4e4e4;
+#google-login-btn:hover { background-color: #e4e4e4; transform: translateY(-2px); }
+#google-login-btn img { width: 22px; height: 22px; }
+
+.login-credit {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    opacity: 0.7;
 }
 
-#google-login-btn img {
-    width: 22px;
-    height: 22px;
-}
-
-/* ==========================================================================
-   3. PERFECT FLEX APP LAYOUT (For Desktop & Responsive Windows)
-   ========================================================================== */
+/* ================================================================
+   APP LAYOUT
+   ================================================================ */
 .app-container {
     display: flex;
     width: 100vw;
     height: 100vh;
     overflow: hidden;
+    position: relative;
 }
 
-/* --- SIDEBAR: हमेशा 100vh के अंदर लॉक रहेगा --- */
+/* ================================================================
+   SIDEBAR
+   ================================================================ */
 .sidebar {
     width: 260px;
     height: 100vh;
@@ -123,11 +188,10 @@ body {
     border-right: 1px solid var(--border-color);
     transition: transform 0.3s ease, width 0.3s ease;
     overflow: hidden;
-    z-index: 10;
-    flex-shrink: 0; /* साइडबार की चौड़ाई कभी नहीं दबेगी */
+    z-index: 100;
+    flex-shrink: 0;
 }
 
-/* जब बंद हो तो पूरी तरह गायब */
 .sidebar.collapsed {
     width: 0;
     padding: 0;
@@ -145,25 +209,52 @@ body {
 .new-chat-btn {
     width: 100%;
     padding: 14px 20px;
-    background-color: #282a2c;
+    background-color: var(--hover-color);
     border: 1px solid var(--border-color);
     color: var(--text-light);
     border-radius: 24px;
     cursor: pointer;
     font-weight: 600;
     text-align: left;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
     font-size: 14px;
     display: flex;
     align-items: center;
     gap: 12px;
+    transition: background 0.2s;
 }
 
-.new-chat-btn:hover {
-    background-color: var(--hover-color);
+.new-chat-btn:hover { background-color: var(--border-color); }
+
+.search-box {
+    position: relative;
+    margin-bottom: 14px;
 }
 
-/* सिर्फ चैट हिस्ट्री स्क्रॉल होगी, नीचे का प्रोफ़ाइल कभी नहीं दबेगा */
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.search-box input {
+    width: 100%;
+    padding: 10px 12px 10px 32px;
+    background: var(--hover-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-light);
+    font-size: 13px;
+    outline: none;
+    transition: border 0.2s;
+}
+
+.search-box input:focus { border-color: var(--accent-color); }
+.search-box input::placeholder { color: var(--text-muted); }
+
 .history-container {
     flex: 1;
     overflow-y: auto;
@@ -171,18 +262,14 @@ body {
 }
 
 .history-container h3 {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
-#history-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
+#history-list { display: flex; flex-direction: column; gap: 4px; }
 
 .history-item-wrapper {
     display: flex;
@@ -193,11 +280,10 @@ body {
     cursor: pointer;
     transition: background 0.2s, border 0.2s;
     border: 1px solid transparent;
+    animation: fadeIn 0.3s ease;
 }
 
-.history-item-wrapper:hover {
-    background-color: var(--hover-color);
-}
+.history-item-wrapper:hover { background-color: var(--hover-color); }
 
 .active-chat-topic {
     background-color: rgba(168, 199, 250, 0.15) !important;
@@ -224,20 +310,12 @@ body {
     transition: opacity 0.2s, color 0.2s;
 }
 
-.history-item-wrapper:hover .delete-item-btn {
-    opacity: 1;
-}
+.history-item-wrapper:hover .delete-item-btn { opacity: 1; }
+.delete-item-btn:hover { color: #ff6b6b; background-color: rgba(255, 107, 107, 0.1); }
 
-.delete-item-btn:hover {
-    color: #ff6b6b;
-    background-color: rgba(255, 107, 107, 0.1);
-}
-
-/* फ़ुटर (क्लियर बटन + प्रोफ़ाइल) हमेशा स्क्रीन के बॉटम में फिक्स रहेगा */
 .sidebar-footer {
     padding-top: 16px;
     border-top: 1px solid var(--border-color);
-    background-color: var(--sidebar-bg);
     margin-top: auto;
     flex-shrink: 0;
 }
@@ -252,11 +330,10 @@ body {
     cursor: pointer;
     font-size: 13px;
     margin-bottom: 16px;
+    transition: background 0.2s;
 }
 
-#clear-history-btn:hover {
-    background: rgba(201, 59, 59, 0.1);
-}
+#clear-history-btn:hover { background: rgba(201, 59, 59, 0.1); }
 
 .user-profile {
     display: flex;
@@ -266,7 +343,42 @@ body {
     width: 100%;
 }
 
-/* --- MAIN CHAT AREA: लचीला लेआउट (Flexible Width) --- */
+.user-profile #username-display {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#logout-btn {
+    background: transparent;
+    border: none;
+    color: #ff6b6b;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+#logout-btn:hover { background: rgba(255, 107, 107, 0.1); }
+
+/* SIDEBAR OVERLAY */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+    opacity: 0;
+    transition: opacity 0.3s;
+    backdrop-filter: blur(2px);
+}
+
+.sidebar-overlay.active { display: block; opacity: 1; }
+
+/* ================================================================
+   CHAT AREA
+   ================================================================ */
 .chat-area {
     flex: 1;
     display: flex;
@@ -275,104 +387,141 @@ body {
     position: relative;
     height: 100vh;
     overflow: hidden;
-    min-width: 0; /* छोटी विंडो में टूटने से बचाएगा */
+    min-width: 0;
 }
 
-/* हेडर को रिस्पॉन्सिव विंडो में ऊपर से 16px स्पेस */
 .chat-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 24px;
+    padding: 12px 20px;
     border-bottom: 1px solid var(--border-color);
     background-color: var(--chat-bg);
     flex-shrink: 0;
+    z-index: 3;
 }
 
 .header-left {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
 }
 
-#sidebar-toggle-btn {
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#sidebar-toggle-btn,
+#toggle-voice-btn,
+#theme-toggle-btn {
     background: transparent;
     border: none;
     color: var(--text-light);
-    font-size: 18px;
+    font-size: 16px;
     cursor: pointer;
-    padding: 8px;
+    padding: 8px 10px;
     border-radius: 50%;
-    transition: background 0.2s;
+    transition: background 0.2s, transform 0.2s;
 }
 
-#sidebar-toggle-btn:hover {
+#sidebar-toggle-btn:hover,
+#toggle-voice-btn:hover,
+#theme-toggle-btn:hover {
     background-color: var(--hover-color);
+    transform: scale(1.08);
 }
 
-.chat-header h2 {
-    font-size: 20px;
-    font-weight: 500;
-    background: linear-gradient(45deg, #a8c7fa, #ffffff);
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.brand-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a8c7fa, #7aa7f5);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+    box-shadow: 0 2px 8px rgba(168, 199, 250, 0.4);
+}
+
+.brand h2 {
+    font-size: 18px;
+    font-weight: 600;
+    background: linear-gradient(45deg, var(--accent-color), var(--text-light));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-#toggle-voice-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-light);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-}
-
-#toggle-voice-btn:hover {
-    background-color: var(--hover-color);
-}
-
-/* --- MESSAGES CONTAINER: इनपुट बॉक्स के लिए पर्याप्त सेफ जोन --- */
+/* ================================================================
+   MESSAGES
+   ================================================================ */
 .messages-container {
     flex: 1;
-    padding: 24px;
+    padding: 20px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding-bottom: 150px; /* नीचे चैट बॉक्स के लिए पूरी जगह */
+    gap: 16px;
+    padding-bottom: 130px;
+    scroll-behavior: smooth;
 }
 
 .message {
-    max-width: 75%;
-    padding: 14px 18px;
+    max-width: 78%;
+    padding: 12px 16px;
     border-radius: 18px;
     font-size: 15px;
-    line-height: 1.6;
+    line-height: 1.55;
     word-wrap: break-word;
     animation: fadeIn 0.3s ease;
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
 .ai-message {
-    background-color: #202124;
+    background-color: var(--card-bg);
     color: var(--text-light);
     align-self: flex-start;
     border-bottom-left-radius: 4px;
-    border-left: 4px solid var(--accent-color);
+    border-left: 3px solid var(--accent-color);
+    box-shadow: 0 2px 6px var(--shadow);
 }
 
 .user-message {
-    background-color: #303134;
+    background-color: var(--user-msg-bg);
     color: var(--text-light);
     align-self: flex-end;
     border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 6px var(--shadow);
+}
+
+.message-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.msg-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    opacity: 0.7;
+    align-self: flex-end;
 }
 
 .msg-speak-btn {
@@ -381,35 +530,147 @@ body {
     color: var(--text-muted);
     cursor: pointer;
     padding: 6px;
-    margin-top: 8px;
+    margin-top: 6px;
     align-self: flex-start;
-    font-size: 13px;
+    font-size: 12px;
     border-radius: 50%;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 0.2s, color 0.2s;
 }
 
-.msg-speak-btn:hover {
-    background-color: var(--hover-color);
-    color: var(--accent-color);
+.msg-speak-btn:hover { background-color: var(--hover-color); color: var(--accent-color); }
+.msg-speak-btn.speaking-now { color: #ff6b6b; background-color: rgba(255, 107, 107, 0.1); }
+
+/* TYPING DOTS */
+.typing-message {
+    padding: 16px 20px;
 }
 
-.msg-speak-btn.speaking-now {
-    color: #ff6b6b;
-    background-color: rgba(255, 107, 107, 0.1);
+.typing-dots {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    height: 14px;
 }
 
-/* --- CHAT INPUT FOOTER: बिल्कुल नीचे फिक्स, एक्स्ट्रा सेफ गैप के साथ --- */
+.typing-dots span {
+    width: 8px;
+    height: 8px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite both;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.55); opacity: 0.5; }
+    40% { transform: scale(1); opacity: 1; }
+}
+
+/* ================================================================
+   WELCOME SCREEN
+   ================================================================ */
+.welcome-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px;
+    margin: auto;
+    animation: fadeIn 0.6s ease;
+    max-width: 640px;
+    width: 100%;
+}
+
+.welcome-logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a8c7fa, #7aa7f5);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 34px;
+    box-shadow: 0 8px 32px rgba(168, 199, 250, 0.35);
+    margin-bottom: 22px;
+    animation: floatY 3s ease-in-out infinite;
+}
+
+.welcome-title {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #a8c7fa, #ffffff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 10px;
+}
+
+body.light-mode .welcome-title {
+    background: linear-gradient(135deg, #1a73e8, #4a148c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.welcome-sub {
+    color: var(--text-muted);
+    font-size: 15px;
+    margin-bottom: 30px;
+    line-height: 1.5;
+}
+
+.suggestion-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    width: 100%;
+}
+
+.chip {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-light);
+    padding: 10px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    animation: fadeIn 0.5s ease backwards;
+}
+
+.chip:nth-child(1) { animation-delay: 0.1s; }
+.chip:nth-child(2) { animation-delay: 0.2s; }
+.chip:nth-child(3) { animation-delay: 0.3s; }
+.chip:nth-child(4) { animation-delay: 0.4s; }
+
+.chip:hover {
+    background: var(--hover-color);
+    border-color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
+/* ================================================================
+   CHAT FOOTER
+   ================================================================ */
 .chat-footer {
     position: absolute;
     bottom: 0;
     right: 0;
     width: 100%;
-    padding: 16px 24px 35px 24px; /* नीचे 35px का सेफ ज़ोन ताकि इनपुट बॉक्स बाहर न निकले */
+    padding: 14px 20px 20px 20px;
     background: linear-gradient(transparent, var(--chat-bg) 40%);
     z-index: 5;
 }
@@ -422,12 +683,14 @@ body {
     border-radius: 32px;
     display: flex;
     align-items: center;
-    padding: 6px 14px;
-    transition: border-color 0.2s;
+    padding: 6px 10px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 16px var(--shadow);
 }
 
 .input-wrapper:focus-within {
     border-color: var(--accent-color);
+    box-shadow: 0 4px 20px rgba(168, 199, 250, 0.2);
 }
 
 #user-input {
@@ -439,13 +702,16 @@ body {
     color: var(--text-light);
     font-size: 16px;
     padding: 0 12px;
+    min-width: 0;
 }
+
+#user-input::placeholder { color: var(--text-muted); }
 
 #mic-btn, #send-btn {
     background: transparent;
     border: none;
     color: var(--text-light);
-    font-size: 18px;
+    font-size: 17px;
     cursor: pointer;
     width: 40px;
     height: 40px;
@@ -453,54 +719,56 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    transition: background 0.2s, transform 0.2s;
+    flex-shrink: 0;
 }
 
-#mic-btn:hover {
+#mic-btn:hover, #send-btn:hover {
     background-color: var(--hover-color);
+    transform: scale(1.05);
 }
 
 #mic-btn.listening {
     background-color: rgba(235, 64, 52, 0.2);
     color: #eb4034;
-    animation: pulse 1.5s infinite;
+    position: relative;
 }
 
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+#mic-btn.listening::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid #eb4034;
+    animation: ringPulse 1.4s infinite;
 }
 
-#send-btn {
-    color: var(--accent-color);
+@keyframes ringPulse {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1.7); opacity: 0; }
 }
 
-#send-btn:hover {
-    background-color: var(--hover-color);
+#send-btn { color: var(--accent-color); }
+
+.footer-credit {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    opacity: 0.6;
 }
 
-/* --- SCROLLBARS & LOADER --- */
-::-webkit-scrollbar {
-    width: 8px;
-}
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-::-webkit-scrollbar-thumb {
-    background: #3c3d3e;
-    border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: #4e4f50;
-}
+/* ================================================================
+   SCROLLBAR & LOADER
+   ================================================================ */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 .custom-loader-wrapper {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    inset: 0;
     background-color: #131314;
     display: flex;
     flex-direction: column;
@@ -532,9 +800,20 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-/* ==========================================================================
-   4. STABLE MEDIA QUERY (For Phones & Small Laptop Windows)
-   ========================================================================== */
+/* ================================================================
+   MODEL INFO (ADMIN)
+   ================================================================ */
+.admin-model-info {
+    font-size: 11px;
+    opacity: 0.6;
+    margin: -8px 0 8px 14px;
+    font-family: monospace;
+    color: var(--text-muted);
+}
+
+/* ================================================================
+   MOBILE
+   ================================================================ */
 @media (max-width: 768px) {
     body {
         height: 100vh !important;
@@ -542,22 +821,17 @@ body {
         overflow: hidden;
     }
 
-    .app-container {
-        position: relative;
-    }
-
-    /* मोबाइल/छोटी विंडो पर साइडबार ओवरले बनेगा */
     .sidebar {
         position: absolute;
         top: 0;
         left: 0;
-        height: 100vh !important; 
-        width: 280px; 
-        max-width: 85%; 
-        z-index: 9999; 
+        height: 100vh !important;
+        width: 280px;
+        max-width: 85%;
+        z-index: 100;
         box-shadow: 10px 0 25px rgba(0, 0, 0, 0.6);
         padding: 16px !important;
-        padding-bottom: 80px !important; /* नीचे सेफ ज़ोन ताकि फ़ुटर दबे नहीं */
+        padding-bottom: 80px !important;
     }
 
     .sidebar.collapsed {
@@ -571,37 +845,44 @@ body {
         height: 100% !important;
     }
 
+    .sidebar-overlay.active { display: block; }
+
     .chat-area {
         width: 100% !important;
         height: 100vh !important;
     }
 
-    .chat-header {
-        padding: 14px 16px !important; 
-    }
-
-    .chat-header h2 {
-        font-size: 18px;
-    }
+    .chat-header { padding: 10px 14px !important; }
+    .brand h2 { font-size: 16px; }
+    .brand-logo { width: 28px; height: 28px; font-size: 14px; }
 
     .messages-container {
-        padding: 16px;
-        padding-bottom: 160px; /* एक्स्ट्रा स्पेस ताकि आख़िरी चैट इनपुट बॉक्स के ऊपर रहे */
+        padding: 14px;
+        padding-bottom: 140px;
     }
 
     .message {
-        max-width: 85%;
+        max-width: 88%;
         font-size: 14px;
+        padding: 10px 14px;
     }
 
     .chat-footer {
-        padding: 12px 16px 80px 16px !important; 
+        padding: 10px 12px 14px 12px !important;
     }
-}
 
-.admin-model-info {
-    font-size: 12px;
-    opacity: 0.7;
-    margin: -4px 0 12px 12px;
-    font-family: monospace;
+    .footer-credit { font-size: 10px; margin-top: 6px; }
+
+    .welcome-block { padding: 20px 10px; }
+    .welcome-logo { width: 60px; height: 60px; font-size: 28px; }
+    .welcome-title { font-size: 26px; }
+    .welcome-sub { font-size: 14px; margin-bottom: 22px; }
+    .chip { padding: 9px 14px; font-size: 12px; }
+
+    #toast-container {
+        top: 12px;
+        right: 12px;
+        left: 12px;
+    }
+    .toast { max-width: 100%; }
 }
