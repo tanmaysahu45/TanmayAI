@@ -1,3 +1,57 @@
+// =====================================================
+// AUTO UPDATE — PWA (khud hi update hota rahega)
+// =====================================================
+let swRegistration = null;
+let isRefreshing = false;
+
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js")
+            .then(reg => {
+                swRegistration = reg;
+
+                // Har 60 second mein update check
+                setInterval(() => {
+                    reg.update().catch(() => {});
+                }, 60000);
+
+                // Jab user tab pe wapas aaye, turant check
+                document.addEventListener("visibilitychange", () => {
+                    if (document.visibilityState === "visible") {
+                        reg.update().catch(() => {});
+                    }
+                });
+
+                // Agar already waiting SW hai, activate karo
+                if (reg.waiting) {
+                    reg.waiting.postMessage("SKIP_WAITING");
+                }
+
+                // Naya SW aaye to activate karo
+                reg.addEventListener("updatefound", () => {
+                    const newSW = reg.installing;
+                    if (!newSW) return;
+                    newSW.addEventListener("statechange", () => {
+                        if (
+                            newSW.state === "installed" &&
+                            navigator.serviceWorker.controller
+                        ) {
+                            newSW.postMessage("SKIP_WAITING");
+                        }
+                    });
+                });
+            })
+            .catch(err => console.log("SW registration failed:", err));
+
+        // Jab naya SW control le → page auto reload
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (isRefreshing) return;
+            isRefreshing = true;
+            window.location.reload();
+        });
+    });
+}
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import {
     getAuth,
