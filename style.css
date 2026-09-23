@@ -39,11 +39,16 @@ body.light-mode {
     --shadow: rgba(0,0,0,0.1);
 }
 
+html, body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+}
+
 body {
     background-color: var(--bg-dark);
     color: var(--text-light);
     display: flex;
-    height: 100vh;
     width: 100vw;
     overflow: hidden;
     transition: background-color 0.3s ease, color 0.3s ease;
@@ -92,6 +97,7 @@ body {
 .login-container {
     width: 100%;
     height: 100vh;
+    height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -171,6 +177,7 @@ body {
     display: flex;
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     position: relative;
 }
@@ -181,6 +188,7 @@ body {
 .sidebar {
     width: 260px;
     height: 100vh;
+    height: 100dvh;
     background-color: var(--sidebar-bg);
     display: flex;
     flex-direction: column;
@@ -386,6 +394,7 @@ body {
     background-color: var(--chat-bg);
     position: relative;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     min-width: 0;
 }
@@ -472,8 +481,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    padding-bottom: 130px;
+    padding-bottom: 40px;
     scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
 }
 
 .message {
@@ -663,16 +673,16 @@ body.light-mode .welcome-title {
 }
 
 /* ================================================================
-   CHAT FOOTER
+   CHAT FOOTER (INPUT)
    ================================================================ */
 .chat-footer {
-    position: absolute;
-    bottom: 0;
-    right: 0;
+    flex-shrink: 0;
     width: 100%;
-    padding: 14px 20px 20px 20px;
-    background: linear-gradient(transparent, var(--chat-bg) 40%);
+    padding: 10px 20px 16px 20px;
+    background-color: var(--chat-bg);
+    border-top: 1px solid var(--border-color);
     z-index: 5;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
 }
 
 .input-wrapper {
@@ -754,7 +764,7 @@ body.light-mode .welcome-title {
     text-align: center;
     font-size: 11px;
     color: var(--text-muted);
-    margin-top: 8px;
+    margin-top: 6px;
     opacity: 0.6;
 }
 
@@ -815,23 +825,17 @@ body.light-mode .welcome-title {
    MOBILE
    ================================================================ */
 @media (max-width: 768px) {
-    body {
-        height: 100vh !important;
-        width: 100vw !important;
-        overflow: hidden;
-    }
 
     .sidebar {
         position: absolute;
         top: 0;
         left: 0;
-        height: 100vh !important;
+        height: 100dvh !important;
         width: 280px;
         max-width: 85%;
         z-index: 100;
         box-shadow: 10px 0 25px rgba(0, 0, 0, 0.6);
         padding: 16px !important;
-        padding-bottom: 80px !important;
     }
 
     .sidebar.collapsed {
@@ -847,18 +851,13 @@ body.light-mode .welcome-title {
 
     .sidebar-overlay.active { display: block; }
 
-    .chat-area {
-        width: 100% !important;
-        height: 100vh !important;
-    }
-
     .chat-header { padding: 10px 14px !important; }
     .brand h2 { font-size: 16px; }
     .brand-logo { width: 28px; height: 28px; font-size: 14px; }
 
     .messages-container {
         padding: 14px;
-        padding-bottom: 140px;
+        padding-bottom: 30px;
     }
 
     .message {
@@ -868,10 +867,31 @@ body.light-mode .welcome-title {
     }
 
     .chat-footer {
-        padding: 10px 12px 14px 12px !important;
+        padding: 8px 10px 10px 10px !important;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
     }
 
-    .footer-credit { font-size: 10px; margin-top: 6px; }
+    .input-wrapper {
+        padding: 4px 6px;
+    }
+
+    #user-input {
+        height: 40px;
+        font-size: 15px;
+        padding: 0 8px;
+    }
+
+    #mic-btn, #send-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 15px;
+    }
+
+    .footer-credit {
+        font-size: 10px;
+        margin-top: 4px;
+        opacity: 0.5;
+    }
 
     .welcome-block { padding: 20px 10px; }
     .welcome-logo { width: 60px; height: 60px; font-size: 28px; }
@@ -885,4 +905,16 @@ body.light-mode .welcome-title {
         left: 12px;
     }
     .toast { max-width: 100%; }
+}
+
+/* ================================================================
+   VERY SMALL SCREENS - footer-credit hata do
+   ================================================================ */
+@media (max-width: 400px) {
+    .footer-credit {
+        display: none;
+    }
+    .chat-footer {
+        padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    }
 }
