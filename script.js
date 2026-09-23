@@ -1,10 +1,8 @@
 /* =========================================================
    TANMAY AI - MAIN SCRIPT
-   Version 7.1
-   Made by Tanmay Sahu
+   Version 7.3
    ========================================================= */
 
-/* ============= IMPORTS ============= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import {
     getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut
@@ -13,7 +11,6 @@ import {
     getFirestore, collection, addDoc, query, deleteDoc, doc, getDocs, where
 } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
 
-/* ============= FIREBASE ============= */
 const firebaseConfig = {
     apiKey: "AIzaSyBQmzNsAaabSHw_s3gbulq45VTn4Ti0mq0",
     authDomain: "tanmay-ai-1190d.firebaseapp.com",
@@ -36,30 +33,59 @@ const googleOAuthUrl =
     "https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=" +
     firebaseConfig.apiKey;
 
+/* ============= FETCH WITH TIMEOUT ============= */
+async function fetchAPI(path, body, timeoutMs) {
+    if (!timeoutMs) timeoutMs = 60000;
+
+    const controller = new AbortController();
+    const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
+    let wakeToastShown = false;
+    const wakeTimer = setTimeout(() => {
+        if (!wakeToastShown) {
+            wakeToastShown = true;
+            showToast("Server jaag raha hai... 30-60 sec", "info");
+        }
+    }, 5000);
+
+    try {
+        const res = await fetch(API_BASE + path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+        clearTimeout(timerId);
+        clearTimeout(wakeTimer);
+        return res;
+    } catch (e) {
+        clearTimeout(timerId);
+        clearTimeout(wakeTimer);
+        if (e.name === "AbortError") {
+            throw new Error("Server timeout (60 sec). Render free tier soya hua hai. Dobara try karo.");
+        }
+        throw e;
+    }
+}
+
 /* ============= PWA ============= */
 let isRefreshing = false;
-
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./service-worker.js")
-            .then(reg => {
-                setInterval(() => reg.update().catch(() => {}), 60000);
-                document.addEventListener("visibilitychange", () => {
-                    if (document.visibilityState === "visible") reg.update().catch(() => {});
+        navigator.serviceWorker.register("./service-worker.js").then(reg => {
+            setInterval(() => reg.update().catch(() => {}), 60000);
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") reg.update().catch(() => {});
+            });
+            if (reg.waiting) reg.waiting.postMessage("SKIP_WAITING");
+            reg.addEventListener("updatefound", () => {
+                const nsw = reg.installing;
+                if (!nsw) return;
+                nsw.addEventListener("statechange", () => {
+                    if (nsw.state === "installed" && navigator.serviceWorker.controller) nsw.postMessage("SKIP_WAITING");
                 });
-                if (reg.waiting) reg.waiting.postMessage("SKIP_WAITING");
-                reg.addEventListener("updatefound", () => {
-                    const nsw = reg.installing;
-                    if (!nsw) return;
-                    nsw.addEventListener("statechange", () => {
-                        if (nsw.state === "installed" && navigator.serviceWorker.controller) {
-                            nsw.postMessage("SKIP_WAITING");
-                        }
-                    });
-                });
-            })
-            .catch(e => console.log("SW fail:", e));
-
+            });
+        }).catch(e => console.log("SW fail:", e));
         navigator.serviceWorker.addEventListener("controllerchange", () => {
             if (isRefreshing) return;
             isRefreshing = true;
@@ -68,10 +94,8 @@ if ("serviceWorker" in navigator) {
     });
 }
 
-/* ============= DOM SHORTCUT ============= */
 const $ = id => document.getElementById(id);
 
-/* ============= DOM ELEMENTS ============= */
 const loginContainer = $("login-container");
 const appContainer = $("app-container");
 const googleLoginBtn = $("google-login-btn");
@@ -100,7 +124,6 @@ const chatSearchInput = $("chat-search-input");
 const toastContainer = $("toast-container");
 const headerMenuBtn = $("header-menu-btn");
 const headerTitle = $("header-title");
-
 const openSettingsBtn = $("open-settings-btn");
 const closeSettingsBtn = $("close-settings-btn");
 const settingsOverlay = $("settings-overlay");
@@ -120,7 +143,6 @@ const settingsLogoutBtn = $("settings-logout-btn");
 const settingsInstallBtn = $("settings-install-btn");
 const installSection = $("install-section");
 const installHint = $("install-hint");
-
 const navChat = $("nav-chat");
 const navStudy = $("nav-study");
 const studyContainer = $("study-container");
@@ -143,12 +165,10 @@ const formulaTopicInput = $("formula-topic-input");
 const formulaContentInput = $("formula-content-input");
 const saveFormulaBtn = $("save-formula-btn");
 const formulaList = $("formula-list");
-
 const pendingImageBar = $("pending-image-bar");
 const pendingThumb = $("pending-thumb");
 const pendingRemove = $("pending-remove");
 const pendingCaption = $("pending-caption");
-
 const callOverlay = $("call-overlay");
 const callStatus = $("call-status");
 const callSub = $("call-sub");
@@ -159,9 +179,8 @@ const callWave = $("call-wave");
 const callTranscript = $("call-transcript");
 const callTranscriptEmpty = $("call-transcript-empty");
 
-console.log("Tanmay AI v7.1 loaded ✓");
+console.log("Tanmay AI v7.3 loaded ✓");
 
-/* ============= STATE ============= */
 let isVoiceEnabled = true;
 let autoSendVoice = true;
 let showCc = true;
@@ -181,46 +200,28 @@ let studyFormulas = [];
 let currentView = "chat";
 let pendingImage = null;
 
-/* Call mode state */
 let callModeActive = false;
 let callRecognition = null;
 let callIsListening = false;
 let callHistoryContext = [];
 let callSpeaking = false;
-let callKeepAliveTimer = null;
 let callManuallyStopped = false;
 let callChatId = null;
-let callSavedCount = 0;
+let callInterimBubble = null;
+let callFirstUserMessage = null;
 
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
 
-/* ============= PLATFORM ============= */
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-const isStandalone = () =>
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true;
+const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 
-/* ============= PWA INSTALL ============= */
-window.addEventListener("beforeinstallprompt", e => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    updateInstallUI();
-});
-
-window.addEventListener("appinstalled", () => {
-    deferredInstallPrompt = null;
-    showToast("Tanmay AI installed! 🎉", "success");
-    updateInstallUI();
-});
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredInstallPrompt = e; updateInstallUI(); });
+window.addEventListener("appinstalled", () => { deferredInstallPrompt = null; showToast("Tanmay AI installed! 🎉", "success"); updateInstallUI(); });
 
 function updateInstallUI() {
-    if (isStandalone()) {
-        installSection.style.display = "none";
-        return;
-    }
+    if (isStandalone()) { installSection.style.display = "none"; return; }
     installSection.style.display = "block";
-
     if (deferredInstallPrompt) {
         settingsInstallBtn.style.display = "flex";
         settingsInstallBtn.innerHTML = `<i class="fa-solid fa-download"></i><div><strong>Install Tanmay AI</strong><small>App ki tarah lagao</small></div>`;
@@ -244,39 +245,25 @@ async function triggerInstall() {
         showToast(c.outcome === "accepted" ? "Installing..." : "Cancelled", c.outcome === "accepted" ? "success" : "info");
         deferredInstallPrompt = null;
         updateInstallUI();
-    } else if (isIOS()) {
-        showToast("Safari Share → Add to Home Screen", "info");
-    } else {
-        showToast("Browser menu (⋮) → Install App", "info");
-    }
+    } else if (isIOS()) showToast("Safari Share → Add to Home Screen", "info");
+    else showToast("Browser menu (⋮) → Install App", "info");
 }
 
 settingsInstallBtn.addEventListener("click", triggerInstall);
 
-/* ============= SETTINGS ============= */
 function loadSettings() {
     const theme = localStorage.getItem("tanmay-theme") || "dark";
-    if (theme === "light") {
-        document.body.classList.add("light-mode");
-        themeToggleBtn.innerHTML = '<i class="fa-solid fa-moon"></i>';
-    }
+    if (theme === "light") { document.body.classList.add("light-mode"); themeToggleBtn.innerHTML = '<i class="fa-solid fa-moon"></i>'; }
     settingTheme.value = theme;
-
     const lang = localStorage.getItem("tanmay-language") || "auto";
-    currentLanguage = lang;
-    settingLanguage.value = lang;
-
+    currentLanguage = lang; settingLanguage.value = lang;
     const voice = localStorage.getItem("tanmay-voice");
     isVoiceEnabled = voice !== "off";
     settingVoiceToggle.checked = isVoiceEnabled;
-    toggleVoiceBtn.innerHTML = isVoiceEnabled
-        ? '<i class="fa-solid fa-volume-high"></i>'
-        : '<i class="fa-solid fa-volume-xmark"></i>';
-
+    toggleVoiceBtn.innerHTML = isVoiceEnabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
     const autoSend = localStorage.getItem("tanmay-autosend-voice");
     autoSendVoice = autoSend !== "off";
     settingAutosendVoice.checked = autoSendVoice;
-
     const cc = localStorage.getItem("tanmay-cc");
     showCc = cc !== "off";
     if (settingCcToggle) settingCcToggle.checked = showCc;
@@ -287,57 +274,25 @@ loadSettings();
 updateInstallUI();
 
 function applyTheme(theme) {
-    if (theme === "light") {
-        document.body.classList.add("light-mode");
-        themeToggleBtn.innerHTML = '<i class="fa-solid fa-moon"></i>';
-    } else {
-        document.body.classList.remove("light-mode");
-        themeToggleBtn.innerHTML = '<i class="fa-solid fa-sun"></i>';
-    }
-    localStorage.setItem("tanmay-theme", theme);
-    settingTheme.value = theme;
+    if (theme === "light") { document.body.classList.add("light-mode"); themeToggleBtn.innerHTML = '<i class="fa-solid fa-moon"></i>'; }
+    else { document.body.classList.remove("light-mode"); themeToggleBtn.innerHTML = '<i class="fa-solid fa-sun"></i>'; }
+    localStorage.setItem("tanmay-theme", theme); settingTheme.value = theme;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", theme === "light" ? "#f5f5f7" : "#0f0f10");
 }
 
-themeToggleBtn.addEventListener("click", () => {
-    applyTheme(document.body.classList.contains("light-mode") ? "dark" : "light");
-});
-
+themeToggleBtn.addEventListener("click", () => applyTheme(document.body.classList.contains("light-mode") ? "dark" : "light"));
 settingTheme.addEventListener("change", e => applyTheme(e.target.value));
-
-settingLanguage.addEventListener("change", e => {
-    currentLanguage = e.target.value;
-    localStorage.setItem("tanmay-language", currentLanguage);
-    showToast("Language updated", "success");
-});
-
+settingLanguage.addEventListener("change", e => { currentLanguage = e.target.value; localStorage.setItem("tanmay-language", currentLanguage); showToast("Language updated", "success"); });
 settingVoiceToggle.addEventListener("change", e => {
     isVoiceEnabled = e.target.checked;
     localStorage.setItem("tanmay-voice", isVoiceEnabled ? "on" : "off");
-    toggleVoiceBtn.innerHTML = isVoiceEnabled
-        ? '<i class="fa-solid fa-volume-high"></i>'
-        : '<i class="fa-solid fa-volume-xmark"></i>';
-    if (!isVoiceEnabled) {
-        window.speechSynthesis.cancel();
-        resetSpeakingButtons();
-    }
+    toggleVoiceBtn.innerHTML = isVoiceEnabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
+    if (!isVoiceEnabled) { window.speechSynthesis.cancel(); resetSpeakingButtons(); }
 });
+settingAutosendVoice.addEventListener("change", e => { autoSendVoice = e.target.checked; localStorage.setItem("tanmay-autosend-voice", autoSendVoice ? "on" : "off"); });
+if (settingCcToggle) settingCcToggle.addEventListener("change", e => { showCc = e.target.checked; localStorage.setItem("tanmay-cc", showCc ? "on" : "off"); if (callCcBtn) callCcBtn.classList.toggle("active", showCc); });
 
-settingAutosendVoice.addEventListener("change", e => {
-    autoSendVoice = e.target.checked;
-    localStorage.setItem("tanmay-autosend-voice", autoSendVoice ? "on" : "off");
-});
-
-if (settingCcToggle) {
-    settingCcToggle.addEventListener("change", e => {
-        showCc = e.target.checked;
-        localStorage.setItem("tanmay-cc", showCc ? "on" : "off");
-        if (callCcBtn) callCcBtn.classList.toggle("active", showCc);
-    });
-}
-
-/* ============= TOAST ============= */
 function showToast(message, type) {
     if (!type) type = "success";
     const t = document.createElement("div");
@@ -345,13 +300,9 @@ function showToast(message, type) {
     t.innerText = message;
     toastContainer.appendChild(t);
     setTimeout(() => t.classList.add("show"), 20);
-    setTimeout(() => {
-        t.classList.remove("show");
-        setTimeout(() => t.remove(), 300);
-    }, 2600);
+    setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2600);
 }
 
-/* ============= TIME ============= */
 function formatTime(ts) {
     const d = new Date(ts);
     let h = d.getHours();
@@ -362,15 +313,10 @@ function formatTime(ts) {
 }
 
 function scrollToBottom() {
-    requestAnimationFrame(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    });
-    setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }, 80);
+    requestAnimationFrame(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
+    setTimeout(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; }, 80);
 }
 
-/* ============= LOADER ============= */
 const globalLoader = document.createElement("div");
 globalLoader.classList.add("custom-loader-wrapper");
 globalLoader.innerHTML = `<div class="chakri"></div><div class="loader-text">Tanmay AI is loading...</div>`;
@@ -379,9 +325,7 @@ document.body.appendChild(globalLoader);
 function removeLoader() {
     if (globalLoader && document.body.contains(globalLoader)) {
         globalLoader.style.opacity = "0";
-        setTimeout(() => {
-            if (globalLoader.parentNode) globalLoader.parentNode.removeChild(globalLoader);
-        }, 300);
+        setTimeout(() => { if (globalLoader.parentNode) globalLoader.parentNode.removeChild(globalLoader); }, 300);
     }
 }
 
@@ -389,46 +333,26 @@ function isCurrentUserAdmin() {
     return !!(currentUser && currentUser.email && ADMIN_EMAILS.includes(currentUser.email.toLowerCase()));
 }
 
-/* ============= COPY / SHARE ============= */
 async function copyToClipboard(text) {
     try {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-        } else {
-            const ta = document.createElement("textarea");
-            ta.value = text;
-            ta.style.position = "fixed";
-            ta.style.left = "-9999px";
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand("copy");
-            document.body.removeChild(ta);
-        }
+        if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+        else { const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.left = "-9999px"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); }
         showToast("Copied!", "success");
-    } catch (e) {
-        showToast("Copy failed", "error");
-    }
+    } catch (e) { showToast("Copy failed", "error"); }
 }
 
 async function shareMessage(text) {
-    if (navigator.share) {
-        try { await navigator.share({ title: "Tanmay AI", text: text }); }
-        catch (e) { if (e.name !== "AbortError") copyToClipboard(text); }
-    } else copyToClipboard(text);
+    if (navigator.share) { try { await navigator.share({ title: "Tanmay AI", text: text }); } catch (e) { if (e.name !== "AbortError") copyToClipboard(text); } }
+    else copyToClipboard(text);
 }
 
 async function shareApp() {
     const url = window.location.origin + window.location.pathname;
-    if (navigator.share) {
-        try { await navigator.share({ title: "Tanmay AI", text: "Dekh, ye Tanmay AI hai!", url: url }); }
-        catch (e) { if (e.name !== "AbortError") await copyToClipboard(url); }
-    } else await copyToClipboard(url);
+    if (navigator.share) { try { await navigator.share({ title: "Tanmay AI", text: "Dekh, ye Tanmay AI hai!", url: url }); } catch (e) { if (e.name !== "AbortError") await copyToClipboard(url); } }
+    else await copyToClipboard(url);
 }
 
-/* ============= DROPDOWNS ============= */
-function closeDropdown() {
-    if (openDropdown) { openDropdown.remove(); openDropdown = null; }
-}
+function closeDropdown() { if (openDropdown) { openDropdown.remove(); openDropdown = null; } }
 
 document.addEventListener("click", e => {
     if (!openDropdown) return;
@@ -441,19 +365,13 @@ function openMenu(anchorBtn, menuItems, isUserMsg) {
     closeDropdown();
     const dd = document.createElement("div");
     dd.className = "msg-dropdown";
-
     menuItems.forEach(item => {
         const b = document.createElement("button");
         b.className = "msg-dropdown-item" + (item.danger ? " danger" : "");
         b.innerHTML = '<i class="fa-solid ' + item.icon + '"></i> ' + item.label;
-        b.onclick = ev => {
-            ev.stopPropagation();
-            closeDropdown();
-            item.action();
-        };
+        b.onclick = ev => { ev.stopPropagation(); closeDropdown(); item.action(); };
         dd.appendChild(b);
     });
-
     document.body.appendChild(dd);
     const r = anchorBtn.getBoundingClientRect();
     const mw = 180;
@@ -462,13 +380,8 @@ function openMenu(anchorBtn, menuItems, isUserMsg) {
     if (l + mw > window.innerWidth - 10) l = window.innerWidth - mw - 10;
     if (l < 10) l = 10;
     const mh = menuItems.length * 42 + 12;
-    if (t + mh > window.innerHeight - 10) {
-        t = r.top - mh - 6;
-        dd.classList.add("drop-up");
-    }
-    dd.style.left = l + "px";
-    dd.style.top = t + "px";
-    openDropdown = dd;
+    if (t + mh > window.innerHeight - 10) { t = r.top - mh - 6; dd.classList.add("drop-up"); }
+    dd.style.left = l + "px"; dd.style.top = t + "px"; openDropdown = dd;
 }
 
 headerMenuBtn.addEventListener("click", e => {
@@ -476,7 +389,6 @@ headerMenuBtn.addEventListener("click", e => {
     closeDropdown();
     const dd = document.createElement("div");
     dd.className = "header-dropdown";
-
     const items = [];
     if (!isStandalone()) items.push({ label: "Install App", icon: "fa-download", action: triggerInstall });
     items.push(
@@ -485,83 +397,55 @@ headerMenuBtn.addEventListener("click", e => {
         { label: "Settings", icon: "fa-gear", action: () => { closeSidebar(); openSettings(); } },
         { label: "New Chat", icon: "fa-plus", action: () => { switchView("chat"); startNewChatSession(); } }
     );
-
     items.forEach(item => {
         const b = document.createElement("button");
         b.className = "header-dropdown-item";
         b.innerHTML = '<i class="fa-solid ' + item.icon + '"></i> ' + item.label;
-        b.onclick = ev => {
-            ev.stopPropagation();
-            closeDropdown();
-            item.action();
-        };
+        b.onclick = ev => { ev.stopPropagation(); closeDropdown(); item.action(); };
         dd.appendChild(b);
     });
-
     document.body.appendChild(dd);
     const r = headerMenuBtn.getBoundingClientRect();
     const mw = 210;
     let l = r.right - mw;
     if (l < 10) l = 10;
     if (l + mw > window.innerWidth - 10) l = window.innerWidth - mw - 10;
-    dd.style.left = l + "px";
-    dd.style.top = (r.bottom + 6) + "px";
-    openDropdown = dd;
+    dd.style.left = l + "px"; dd.style.top = (r.bottom + 6) + "px"; openDropdown = dd;
 });
 
-/* ============= MEMORY ============= */
 async function loadAllMemories() {
     if (!currentUser) return;
     try {
         const gSnap = await getDocs(collection(db, "global_rules"));
         globalRulesCache = [];
-        gSnap.forEach(d => {
-            const x = d.data();
-            if (x && x.rule) globalRulesCache.push(x.rule);
-        });
-
+        gSnap.forEach(d => { const x = d.data(); if (x && x.rule) globalRulesCache.push(x.rule); });
         const uSnap = await getDocs(collection(db, "users_memory/" + currentUser.uid + "/memories"));
         userPersonalMemoryCache = [];
-        uSnap.forEach(d => {
-            if (d.data() && d.data().memory) userPersonalMemoryCache.push(d.data().memory);
-        });
-    } catch (e) {
-        console.error("Memory load error:", e);
-    }
+        uSnap.forEach(d => { if (d.data() && d.data().memory) userPersonalMemoryCache.push(d.data().memory); });
+    } catch (e) { console.error("Memory load error:", e); }
 }
 
-/* ============= AUTH ============= */
 onAuthStateChanged(auth, async user => {
     if (user) {
         currentUser = user;
         const displayName = user.displayName || (user.email && user.email.split("@")[0]) || "User";
         const email = user.email || "";
-
         usernameDisplay.innerText = displayName;
         useremailDisplay.innerText = email;
         settingsUsername.innerText = displayName;
         settingsUseremail.innerText = email;
-
         if (user.photoURL) {
-            userAvatar.src = user.photoURL;
-            userAvatar.style.display = "block";
-            defaultUserIcon.style.display = "none";
-            settingsAvatar.src = user.photoURL;
-            settingsAvatar.style.display = "block";
-            settingsDefaultIcon.style.display = "none";
+            userAvatar.src = user.photoURL; userAvatar.style.display = "block"; defaultUserIcon.style.display = "none";
+            settingsAvatar.src = user.photoURL; settingsAvatar.style.display = "block"; settingsDefaultIcon.style.display = "none";
         } else {
-            userAvatar.style.display = "none";
-            defaultUserIcon.style.display = "inline-block";
-            settingsAvatar.style.display = "none";
-            settingsDefaultIcon.style.display = "block";
+            userAvatar.style.display = "none"; defaultUserIcon.style.display = "inline-block";
+            settingsAvatar.style.display = "none"; settingsDefaultIcon.style.display = "block";
         }
-
         await loadAllMemories();
         loadStudyFromLocal();
         renderNotes();
         renderFormulas();
         await loadAllSidebarTopics(true);
-
         loginContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
         removeLoader();
@@ -575,11 +459,8 @@ onAuthStateChanged(auth, async user => {
 
 googleLoginBtn.addEventListener("click", () => {
     const isWebView = /wv|WebView/i.test(window.navigator.userAgent) || (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
-    if (isWebView) {
-        window.location.href = googleOAuthUrl;
-    } else {
-        signInWithPopup(auth, provider).catch(e => showToast("Login Error: " + e.message, "error"));
-    }
+    if (isWebView) window.location.href = googleOAuthUrl;
+    else signInWithPopup(auth, provider).catch(e => showToast("Login Error: " + e.message, "error"));
 });
 
 function doLogout() {
@@ -591,86 +472,47 @@ function doLogout() {
     });
 }
 
-settingsLogoutBtn.addEventListener("click", () => {
-    if (confirm("Sign out from Tanmay AI?")) doLogout();
-});
+settingsLogoutBtn.addEventListener("click", () => { if (confirm("Sign out from Tanmay AI?")) doLogout(); });
 
-/* ============= SETTINGS PANEL ============= */
-function openSettings() {
-    settingsOverlay.classList.remove("hidden");
-    document.body.style.overflow = "hidden";
-    updateInstallUI();
-}
-
-function closeSettings() {
-    settingsOverlay.classList.add("hidden");
-    document.body.style.overflow = "";
-}
+function openSettings() { settingsOverlay.classList.remove("hidden"); document.body.style.overflow = "hidden"; updateInstallUI(); }
+function closeSettings() { settingsOverlay.classList.add("hidden"); document.body.style.overflow = ""; }
 
 openSettingsBtn.addEventListener("click", () => { closeSidebar(); openSettings(); });
 userProfileBtn.addEventListener("click", () => { closeSidebar(); openSettings(); });
 closeSettingsBtn.addEventListener("click", closeSettings);
-settingsOverlay.addEventListener("click", e => {
-    if (e.target === settingsOverlay) closeSettings();
-});
+settingsOverlay.addEventListener("click", e => { if (e.target === settingsOverlay) closeSettings(); });
 
-/* ============= CLEAR DATA ============= */
 settingsClearHistory.addEventListener("click", async () => {
     if (!currentUser) return;
     if (!confirm("Clear ALL chat history?")) return;
-
     try {
         const q = query(collection(db, "chat_messages"));
         const snap = await getDocs(q);
-        for (const d of snap.docs) {
-            if (d.data().uid === currentUser.uid) {
-                await deleteDoc(doc(db, "chat_messages", d.id));
-            }
-        }
+        for (const d of snap.docs) if (d.data().uid === currentUser.uid) await deleteDoc(doc(db, "chat_messages", d.id));
         sessionStorage.removeItem(CHAT_SESSION_KEY);
         startNewChatSession();
         historyList.innerHTML = "";
         closeSettings();
         showToast("History cleared", "success");
-    } catch (e) {
-        showToast("Clear failed", "error");
-    }
+    } catch (e) { showToast("Clear failed", "error"); }
 });
 
 settingsClearMemory.addEventListener("click", async () => {
     if (!currentUser) return;
     if (!confirm("Clear your personal memory?")) return;
-
     try {
         const q = query(collection(db, "users_memory/" + currentUser.uid + "/memories"));
         const snap = await getDocs(q);
-        for (const d of snap.docs) {
-            await deleteDoc(doc(db, "users_memory/" + currentUser.uid + "/memories", d.id));
-        }
+        for (const d of snap.docs) await deleteDoc(doc(db, "users_memory/" + currentUser.uid + "/memories", d.id));
         userPersonalMemoryCache = [];
         showToast("Personal memory cleared", "success");
-    } catch (e) {
-        showToast("Clear failed", "error");
-    }
+    } catch (e) { showToast("Clear failed", "error"); }
 });
 
-/* ============= SIDEBAR ============= */
-function openSidebar() {
-    sidebar.classList.remove("collapsed");
-    if (window.innerWidth <= 768) sidebarOverlay.classList.add("active");
-}
+function openSidebar() { sidebar.classList.remove("collapsed"); if (window.innerWidth <= 768) sidebarOverlay.classList.add("active"); }
+function closeSidebar() { sidebar.classList.add("collapsed"); sidebarOverlay.classList.remove("active"); }
 
-function closeSidebar() {
-    sidebar.classList.add("collapsed");
-    sidebarOverlay.classList.remove("active");
-}
-
-sidebarToggleBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    if (sidebar.classList.contains("collapsed")) openSidebar();
-    else closeSidebar();
-});
-
+sidebarToggleBtn.addEventListener("click", e => { e.stopPropagation(); if (sidebar.classList.contains("collapsed")) openSidebar(); else closeSidebar(); });
 sidebarOverlay.addEventListener("click", closeSidebar);
 sidebarCloseBtn.addEventListener("click", closeSidebar);
 
@@ -682,13 +524,10 @@ chatSearchInput.addEventListener("input", e => {
     });
 });
 
-/* ============= VIEW SWITCH ============= */
 function switchView(view) {
     currentView = view;
     document.querySelectorAll(".sidebar-nav-btn").forEach(b => b.classList.remove("active"));
-    if (view === "chat") navChat.classList.add("active");
-    else navStudy.classList.add("active");
-
+    if (view === "chat") navChat.classList.add("active"); else navStudy.classList.add("active");
     if (view === "chat") {
         messagesContainer.classList.remove("hidden");
         chatFooter.classList.remove("hidden");
@@ -699,8 +538,7 @@ function switchView(view) {
         chatFooter.classList.add("hidden");
         studyContainer.classList.remove("hidden");
         headerTitle.innerText = "Study Mode";
-        renderNotes();
-        renderFormulas();
+        renderNotes(); renderFormulas();
     }
     if (window.innerWidth <= 768) closeSidebar();
 }
@@ -708,69 +546,38 @@ function switchView(view) {
 navChat.addEventListener("click", () => switchView("chat"));
 navStudy.addEventListener("click", () => switchView("study"));
 
-/* ============= STUDY TABS ============= */
 studyTabs.forEach(tab => {
     tab.addEventListener("click", () => {
         const t = tab.dataset.tab;
         studyTabs.forEach(x => x.classList.remove("active"));
         tab.classList.add("active");
-        Object.keys(studyPanels).forEach(k => {
-            studyPanels[k].classList.toggle("active", k === t);
-        });
+        Object.keys(studyPanels).forEach(k => studyPanels[k].classList.toggle("active", k === t));
     });
 });
 
-/* ============= STUDY DATA ============= */
-function studyKey() {
-    return currentUser ? "study_" + currentUser.uid : "study_guest";
-}
+function studyKey() { return currentUser ? "study_" + currentUser.uid : "study_guest"; }
 
 function loadStudyFromLocal() {
     try {
         const raw = localStorage.getItem(studyKey());
-        if (raw) {
-            const data = JSON.parse(raw);
-            studyNotes = Array.isArray(data.notes) ? data.notes : [];
-            studyFormulas = Array.isArray(data.formulas) ? data.formulas : [];
-        } else {
-            studyNotes = [];
-            studyFormulas = [];
-        }
-    } catch (e) {
-        studyNotes = [];
-        studyFormulas = [];
-    }
+        if (raw) { const data = JSON.parse(raw); studyNotes = Array.isArray(data.notes) ? data.notes : []; studyFormulas = Array.isArray(data.formulas) ? data.formulas : []; }
+        else { studyNotes = []; studyFormulas = []; }
+    } catch (e) { studyNotes = []; studyFormulas = []; }
 }
 
 function saveStudyToLocal() {
-    try {
-        localStorage.setItem(studyKey(), JSON.stringify({
-            notes: studyNotes,
-            formulas: studyFormulas
-        }));
-    } catch (e) {}
+    try { localStorage.setItem(studyKey(), JSON.stringify({ notes: studyNotes, formulas: studyFormulas })); } catch (e) {}
 }
 
 function renderNotes() {
     if (!notesList) return;
     notesList.innerHTML = "";
-    if (!studyNotes.length) {
-        notesList.innerHTML = '<div class="study-empty">Abhi koi note nahi. Upar se add karo.</div>';
-        return;
-    }
+    if (!studyNotes.length) { notesList.innerHTML = '<div class="study-empty">Abhi koi note nahi. Upar se add karo.</div>'; return; }
     studyNotes.forEach((n, i) => {
         const card = document.createElement("div");
         card.className = "study-card";
-        card.innerHTML =
-            '<div class="study-card-title">' + escapeHtml(n.title) + '</div>' +
-            '<div class="study-card-body">' + escapeHtml(n.content) + '</div>' +
-            '<button class="study-card-delete"><i class="fa-solid fa-trash"></i></button>';
-        card.querySelector(".study-card-delete").onclick = () => {
-            studyNotes.splice(i, 1);
-            saveStudyToLocal();
-            renderNotes();
-            showToast("Note deleted", "success");
-        };
+        card.innerHTML = '<div class="study-card-title">' + escapeHtml(n.title) + '</div><div class="study-card-body">' + escapeHtml(n.content) + '</div><button class="study-card-delete"><i class="fa-solid fa-trash"></i></button>';
+        card.querySelector(".study-card-delete").onclick = () => { studyNotes.splice(i, 1); saveStudyToLocal(); renderNotes(); showToast("Note deleted", "success"); };
         notesList.appendChild(card);
     });
 }
@@ -778,34 +585,18 @@ function renderNotes() {
 function renderFormulas() {
     if (!formulaList) return;
     formulaList.innerHTML = "";
-    if (!studyFormulas.length) {
-        formulaList.innerHTML = '<div class="study-empty">Abhi koi formula nahi.</div>';
-        return;
-    }
+    if (!studyFormulas.length) { formulaList.innerHTML = '<div class="study-empty">Abhi koi formula nahi.</div>'; return; }
     studyFormulas.forEach((f, i) => {
         const card = document.createElement("div");
         card.className = "study-card";
-        card.innerHTML =
-            '<div class="study-card-title">' + escapeHtml(f.topic) + '</div>' +
-            '<div class="study-card-body">' + escapeHtml(f.content) + '</div>' +
-            '<button class="study-card-delete"><i class="fa-solid fa-trash"></i></button>';
-        card.querySelector(".study-card-delete").onclick = () => {
-            studyFormulas.splice(i, 1);
-            saveStudyToLocal();
-            renderFormulas();
-            showToast("Formula deleted", "success");
-        };
+        card.innerHTML = '<div class="study-card-title">' + escapeHtml(f.topic) + '</div><div class="study-card-body">' + escapeHtml(f.content) + '</div><button class="study-card-delete"><i class="fa-solid fa-trash"></i></button>';
+        card.querySelector(".study-card-delete").onclick = () => { studyFormulas.splice(i, 1); saveStudyToLocal(); renderFormulas(); showToast("Formula deleted", "success"); };
         formulaList.appendChild(card);
     });
 }
 
 function escapeHtml(str) {
-    return String(str || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 saveNoteBtn.addEventListener("click", () => {
@@ -814,10 +605,8 @@ saveNoteBtn.addEventListener("click", () => {
     if (!title || !content) return showToast("Title aur content dono likho", "error");
     studyNotes.unshift({ title: title, content: content, ts: Date.now() });
     saveStudyToLocal();
-    noteTitleInput.value = "";
-    noteContentInput.value = "";
-    renderNotes();
-    showToast("Note added", "success");
+    noteTitleInput.value = ""; noteContentInput.value = "";
+    renderNotes(); showToast("Note added", "success");
 });
 
 saveFormulaBtn.addEventListener("click", () => {
@@ -826,204 +615,118 @@ saveFormulaBtn.addEventListener("click", () => {
     if (!topic || !content) return showToast("Dono likho", "error");
     studyFormulas.unshift({ topic: topic, content: content, ts: Date.now() });
     saveStudyToLocal();
-    formulaTopicInput.value = "";
-    formulaContentInput.value = "";
-    renderFormulas();
-    showToast("Formula added", "success");
+    formulaTopicInput.value = ""; formulaContentInput.value = "";
+    renderFormulas(); showToast("Formula added", "success");
 });
 
-/* ============= QUIZ ============= */
 startQuizBtn.addEventListener("click", async () => {
     const topic = quizTopicInput.value.trim();
     if (!topic) return showToast("Topic likho pehle", "error");
     const count = quizCountSelect.value;
-
     quizDisplay.classList.remove("hidden");
-    quizDisplay.innerHTML =
-        '<div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div>' +
-        '<div style="text-align:center;color:var(--text-muted);font-size:13px;margin-top:8px;">Quiz ban raha hai...</div>';
-
+    quizDisplay.innerHTML = '<div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div><div style="text-align:center;color:var(--text-muted);font-size:13px;margin-top:8px;">Quiz ban raha hai...</div>';
     try {
-        const res = await fetch(API_BASE + "/api/quiz", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                topic: topic,
-                count: count,
-                userName: currentUser.displayName || "User",
-                userEmail: currentUser.email || ""
-            })
-        });
+        const res = await fetchAPI("/api/quiz", { topic: topic, count: count, userName: currentUser.displayName || "User", userEmail: currentUser.email || "" });
         const data = await res.json();
         if (res.ok && data.reply) renderQuiz(data.reply);
         else quizDisplay.innerHTML = '<div class="study-empty">Quiz nahi ban paya.</div>';
-    } catch (e) {
-        quizDisplay.innerHTML = '<div class="study-empty">Network problem.</div>';
-    }
+    } catch (e) { quizDisplay.innerHTML = '<div class="study-empty">' + escapeHtml(e.message) + '</div>'; }
 });
 
 function renderQuiz(rawText) {
     const blocks = rawText.split(/\n(?=Q\d+[\.\)])/i);
     const quizData = [];
-
     blocks.forEach(block => {
         const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
         if (!lines.length) return;
         const qMatch = lines[0].match(/Q\d+[\.\)]\s*(.+)/i);
         if (!qMatch) return;
         const question = qMatch[1].trim();
-        const options = [];
-        let answer = null;
-
+        const options = []; let answer = null;
         lines.slice(1).forEach(l => {
             const o = l.match(/^([A-D])[\.\)]\s*(.+)/i);
             if (o) options.push({ letter: o[1].toUpperCase(), text: o[2].trim() });
             const a = l.match(/^Answer\s*[:\-]\s*([A-D])/i);
             if (a) answer = a[1].toUpperCase();
         });
-
-        if (question && options.length >= 2 && answer) {
-            quizData.push({ question: question, options: options, answer: answer });
-        }
+        if (question && options.length >= 2 && answer) quizData.push({ question: question, options: options, answer: answer });
     });
-
-    if (!quizData.length) {
-        quizDisplay.innerHTML = '<div class="study-empty">Quiz format galat aaya.</div>';
-        return;
-    }
-
+    if (!quizData.length) { quizDisplay.innerHTML = '<div class="study-empty">Quiz format galat aaya.</div>'; return; }
     quizDisplay.innerHTML = "";
-    let score = 0;
-    let answered = 0;
-
+    let score = 0; let answered = 0;
     quizData.forEach((q, idx) => {
         const qDiv = document.createElement("div");
         qDiv.className = "quiz-question";
-
         const qt = document.createElement("div");
         qt.className = "quiz-q-text";
         qt.innerText = "Q" + (idx + 1) + ". " + q.question;
         qDiv.appendChild(qt);
-
         const ow = document.createElement("div");
         ow.className = "quiz-options";
-
         q.options.forEach(opt => {
             const b = document.createElement("div");
             b.className = "quiz-option";
             b.innerText = opt.letter + ") " + opt.text;
-
             b.onclick = () => {
                 if (b.classList.contains("disabled")) return;
                 ow.querySelectorAll(".quiz-option").forEach(x => x.classList.add("disabled"));
-
-                if (opt.letter === q.answer) {
-                    b.classList.add("correct");
-                    score++;
-                } else {
-                    b.classList.add("wrong");
-                    ow.querySelectorAll(".quiz-option").forEach(x => {
-                        if (x.innerText.startsWith(q.answer + ")")) x.classList.add("correct");
-                    });
-                }
-
+                if (opt.letter === q.answer) { b.classList.add("correct"); score++; }
+                else { b.classList.add("wrong"); ow.querySelectorAll(".quiz-option").forEach(x => { if (x.innerText.startsWith(q.answer + ")")) x.classList.add("correct"); }); }
                 answered++;
-                if (answered === quizData.length) {
-                    const sc = document.createElement("div");
-                    sc.className = "quiz-score";
-                    sc.innerText = "Score: " + score + " / " + quizData.length;
-                    quizDisplay.appendChild(sc);
-                }
+                if (answered === quizData.length) { const sc = document.createElement("div"); sc.className = "quiz-score"; sc.innerText = "Score: " + score + " / " + quizData.length; quizDisplay.appendChild(sc); }
             };
             ow.appendChild(b);
         });
-
         qDiv.appendChild(ow);
         quizDisplay.appendChild(qDiv);
     });
 }
 
-/* ============= PLUS BUTTON + ATTACH MENU ============= */
 function openAttachMenu() {
     closeDropdown();
-
     const dd = document.createElement("div");
     dd.className = "attach-menu";
-
     const items = [
         { label: "Gallery", icon: "fa-image", action: () => imageInput.click() },
         { label: "Camera", icon: "fa-camera", action: () => cameraInput.click() },
         { label: "Files", icon: "fa-paperclip", action: () => fileInput.click() },
         { label: "Paste Image", icon: "fa-paste", action: pasteImageFromClipboard }
     ];
-
     items.forEach(item => {
         const b = document.createElement("button");
         b.className = "attach-menu-item";
-        b.innerHTML =
-            '<div class="attach-icon-wrap"><i class="fa-solid ' + item.icon + '"></i></div>' +
-            '<span>' + item.label + '</span>';
-        b.onclick = ev => {
-            ev.stopPropagation();
-            closeDropdown();
-            item.action();
-        };
+        b.innerHTML = '<div class="attach-icon-wrap"><i class="fa-solid ' + item.icon + '"></i></div><span>' + item.label + '</span>';
+        b.onclick = ev => { ev.stopPropagation(); closeDropdown(); item.action(); };
         dd.appendChild(b);
     });
-
     document.body.appendChild(dd);
-
     const r = plusBtn.getBoundingClientRect();
-    const mw = 210;
-    const mh = items.length * 54 + 20;
-
-    let l = r.left;
-    let t = r.top - mh - 8;
-
+    const mw = 210; const mh = items.length * 54 + 20;
+    let l = r.left; let t = r.top - mh - 8;
     if (t < 10) t = r.bottom + 8;
     if (l + mw > window.innerWidth - 10) l = window.innerWidth - mw - 10;
     if (l < 10) l = 10;
-
-    dd.style.left = l + "px";
-    dd.style.top = t + "px";
-    openDropdown = dd;
+    dd.style.left = l + "px"; dd.style.top = t + "px"; openDropdown = dd;
 }
 
-plusBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    openAttachMenu();
-});
+plusBtn.addEventListener("click", e => { e.stopPropagation(); openAttachMenu(); });
 
 async function pasteImageFromClipboard() {
     try {
-        if (!navigator.clipboard || !navigator.clipboard.read) {
-            return showToast("Clipboard support nahi hai", "error");
-        }
+        if (!navigator.clipboard || !navigator.clipboard.read) return showToast("Clipboard support nahi hai", "error");
         const items = await navigator.clipboard.read();
         for (const item of items) {
             for (const type of item.types) {
-                if (type.startsWith("image/")) {
-                    const blob = await item.getType(type);
-                    const file = new File([blob], "pasted-image.png", { type: type });
-                    handleImageFile(file);
-                    return;
-                }
+                if (type.startsWith("image/")) { const blob = await item.getType(type); const file = new File([blob], "pasted-image.png", { type: type }); handleImageFile(file); return; }
             }
         }
         showToast("Clipboard mein koi image nahi mili", "info");
-    } catch (e) {
-        console.log("Paste error:", e);
-        showToast("Paste permission nahi mili", "error");
-    }
+    } catch (e) { console.log("Paste error:", e); showToast("Paste permission nahi mili", "error"); }
 }
 
-/* ============= IMAGE HANDLING ============= */
 function handleImageFile(file) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-        return showToast("Sirf image bhej sakte ho", "error");
-    }
-
+    if (!file.type.startsWith("image/")) return showToast("Sirf image bhej sakte ho", "error");
     const reader = new FileReader();
     reader.onload = ev => {
         pendingImage = { dataUrl: ev.target.result, mime: file.type };
@@ -1035,38 +738,12 @@ function handleImageFile(file) {
     reader.readAsDataURL(file);
 }
 
-imageInput.addEventListener("change", e => {
-    const f = e.target.files && e.target.files[0];
-    handleImageFile(f);
-    e.target.value = "";
-});
+imageInput.addEventListener("change", e => { const f = e.target.files && e.target.files[0]; handleImageFile(f); e.target.value = ""; });
+cameraInput.addEventListener("change", e => { const f = e.target.files && e.target.files[0]; handleImageFile(f); e.target.value = ""; });
+fileInput.addEventListener("change", e => { const f = e.target.files && e.target.files[0]; if (f) { if (!f.type.startsWith("image/")) showToast("Abhi sirf image support hai", "info"); else handleImageFile(f); } e.target.value = ""; });
 
-cameraInput.addEventListener("change", e => {
-    const f = e.target.files && e.target.files[0];
-    handleImageFile(f);
-    e.target.value = "";
-});
+pendingRemove.addEventListener("click", () => { pendingImage = null; pendingImageBar.classList.add("hidden"); pendingThumb.src = ""; pendingCaption.value = ""; });
 
-fileInput.addEventListener("change", e => {
-    const f = e.target.files && e.target.files[0];
-    if (f) {
-        if (!f.type.startsWith("image/")) {
-            showToast("Abhi sirf image support hai", "info");
-        } else {
-            handleImageFile(f);
-        }
-    }
-    e.target.value = "";
-});
-
-pendingRemove.addEventListener("click", () => {
-    pendingImage = null;
-    pendingImageBar.classList.add("hidden");
-    pendingThumb.src = "";
-    pendingCaption.value = "";
-});
-
-/* ============= SEND MESSAGE ============= */
 async function sendMessage() {
     if (pendingImage) {
         const caption = pendingCaption.value.trim();
@@ -1078,30 +755,20 @@ async function sendMessage() {
         await sendImageMessage(img.dataUrl, img.mime, caption);
         return;
     }
-
     const text = userInput.value.trim();
     if (!text) return;
     if (!currentUser) return showToast("Pehle login karo", "error");
     if (currentView !== "chat") switchView("chat");
-
-    if (!currentChatId) {
-        currentChatId = "chat_" + Date.now();
-        sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
-    }
-
+    if (!currentChatId) { currentChatId = "chat_" + Date.now(); sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId); }
     const wb = messagesContainer.querySelector(".welcome-block");
     if (wb) wb.remove();
-
     appendUserMessage(text);
     userInput.value = "";
     chatHistoryContext.push({ role: "user", content: text });
-
     const userEmail = currentUser.email || "No Email";
     const userName = currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
-
     const memRx = /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|suno:|sun:)\s*(.*)/i;
     const match = text.match(memRx);
-
     if (match && match[2]) {
         const learned = match[2].trim();
         await savePersonalMemory(learned);
@@ -1111,9 +778,7 @@ async function sendMessage() {
         await saveMessageToFirebase(currentChatId, text, msg);
         return;
     }
-
     const trimmed = chatHistoryContext.slice(-8);
-
     const lr = document.createElement("div");
     lr.classList.add("message-row", "ai-row");
     const lb = document.createElement("div");
@@ -1122,29 +787,17 @@ async function sendMessage() {
     lr.appendChild(lb);
     messagesContainer.appendChild(lr);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
     try {
-        const res = await fetch(API_BASE + "/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                messages: trimmed,
-                userName: userName,
-                userEmail: userEmail,
-                globalRules: globalRulesCache,
-                personalMemory: userPersonalMemoryCache,
-                preferredLanguage: currentLanguage
-            })
+        const res = await fetchAPI("/api/chat", {
+            messages: trimmed, userName: userName, userEmail: userEmail,
+            globalRules: globalRulesCache, personalMemory: userPersonalMemoryCache, preferredLanguage: currentLanguage
         });
-
         const data = await res.json();
         if (messagesContainer.contains(lr)) messagesContainer.removeChild(lr);
-
         if (res.ok && data.reply) {
             const aiReply = data.reply;
             chatHistoryContext.push({ role: "assistant", content: aiReply });
             appendAIMessage(aiReply, true, text);
-
             if (isCurrentUserAdmin() && data.showModel && data.provider && data.model) {
                 const mi = document.createElement("div");
                 mi.className = "admin-model-info";
@@ -1152,43 +805,30 @@ async function sendMessage() {
                 messagesContainer.appendChild(mi);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
-
             await saveMessageToFirebase(currentChatId, text, aiReply);
         } else {
             appendAIMessage((data && data.reply) || "Abhi response nahi aaya.", true, text);
         }
     } catch (e) {
         if (messagesContainer.contains(lr)) messagesContainer.removeChild(lr);
-        appendAIMessage("Bhai, server se connection nahi ho pa raha.", true, text);
-        showToast("Connection failed", "error");
+        appendAIMessage(e.message || "Bhai, server se connection nahi ho pa raha.", true, text);
+        showToast("Server error — check Render", "error");
     }
 }
 
 sendBtn.addEventListener("click", sendMessage);
-userInput.addEventListener("keypress", e => {
-    if (e.key === "Enter") sendMessage();
-});
-pendingCaption.addEventListener("keypress", e => {
-    if (e.key === "Enter") sendMessage();
-});
+userInput.addEventListener("keypress", e => { if (e.key === "Enter") sendMessage(); });
+pendingCaption.addEventListener("keypress", e => { if (e.key === "Enter") sendMessage(); });
 
-/* ============= SEND IMAGE ============= */
 async function sendImageMessage(dataUrl, mime, caption) {
     if (!currentUser) return;
     if (currentView !== "chat") switchView("chat");
-
-    if (!currentChatId) {
-        currentChatId = "chat_" + Date.now();
-        sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
-    }
-
+    if (!currentChatId) { currentChatId = "chat_" + Date.now(); sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId); }
     const wb = messagesContainer.querySelector(".welcome-block");
     if (wb) wb.remove();
-
     appendUserImageMessage(dataUrl, caption);
     const userText = caption || "[Image]";
     chatHistoryContext.push({ role: "user", content: userText });
-
     const lr = document.createElement("div");
     lr.classList.add("message-row", "ai-row");
     const lb = document.createElement("div");
@@ -1197,33 +837,18 @@ async function sendImageMessage(dataUrl, mime, caption) {
     lr.appendChild(lb);
     messagesContainer.appendChild(lr);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
     try {
-        const res = await fetch(API_BASE + "/api/vision", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                userText: caption,
-                imageBase64: dataUrl,
-                imageMime: mime,
-                userName: currentUser.displayName || "User",
-                userEmail: currentUser.email || "",
-                personalMemory: userPersonalMemoryCache
-            })
+        const res = await fetchAPI("/api/vision", {
+            userText: caption, imageBase64: dataUrl, imageMime: mime,
+            userName: currentUser.displayName || "User",
+            userEmail: currentUser.email || "",
+            personalMemory: userPersonalMemoryCache
         });
-
         const data = await res.json();
         if (messagesContainer.contains(lr)) messagesContainer.removeChild(lr);
-
         if (res.ok && data.reply) {
             chatHistoryContext.push({ role: "assistant", content: data.reply });
             appendAIMessage(data.reply, true, userText);
-            if (isCurrentUserAdmin() && data.showModel && data.provider && data.model) {
-                const mi = document.createElement("div");
-                mi.className = "admin-model-info";
-                mi.innerText = "🤖 " + data.provider + " • " + data.model;
-                messagesContainer.appendChild(mi);
-            }
             await saveMessageToFirebase(currentChatId, userText, data.reply);
         } else {
             appendAIMessage((data && data.reply) || "Image samajh nahi paaya.", true, userText);
@@ -1244,12 +869,7 @@ function appendUserImageMessage(dataUrl, caption) {
     img.className = "message-image";
     img.onclick = () => openImageLightbox(dataUrl);
     bubble.appendChild(img);
-    if (caption) {
-        const t = document.createElement("div");
-        t.className = "message-text";
-        t.innerText = caption;
-        bubble.appendChild(t);
-    }
+    if (caption) { const t = document.createElement("div"); t.className = "message-text"; t.innerText = caption; bubble.appendChild(t); }
     const timeNode = document.createElement("div");
     timeNode.classList.add("msg-time");
     timeNode.innerText = formatTime(Date.now());
@@ -1267,127 +887,85 @@ function openImageLightbox(src) {
     lb.onclick = () => lb.remove();
 }
 
-/* =========================================================
-   CALL MODE — auto listen, save to Firebase, short answers
-   ========================================================= */
-
+/* ============= CALL MODE ============= */
 function callAddBubble(text, isUser, isInterim) {
     if (!callTranscript) return;
-
-    if (callTranscriptEmpty && callTranscriptEmpty.parentNode) {
-        callTranscriptEmpty.style.display = "none";
-    }
-
-    // Agar same role ka last bubble hai aur interim hai, usko replace karo
+    if (callTranscriptEmpty && callTranscriptEmpty.parentNode) callTranscriptEmpty.style.display = "none";
     if (isUser && isInterim) {
-        const last = callTranscript.querySelector(".call-bubble-user.interim:last-child");
-        if (last) {
-            last.querySelector(".call-bubble-text").innerText = text;
-            callTranscript.scrollTop = callTranscript.scrollHeight;
-            return;
+        if (!callInterimBubble || !callInterimBubble.parentNode) {
+            callInterimBubble = document.createElement("div");
+            callInterimBubble.className = "call-bubble call-bubble-user interim";
+            callInterimBubble.innerHTML = '<span class="call-bubble-label">You</span><div class="call-bubble-text"></div>';
+            callTranscript.appendChild(callInterimBubble);
         }
+        callInterimBubble.querySelector(".call-bubble-text").innerText = text;
+        callTranscript.scrollTop = callTranscript.scrollHeight;
+        return;
     }
-
-    // Interim tha, ab final bana → usi bubble ko final karo
     if (isUser && !isInterim) {
-        const lastInterim = callTranscript.querySelector(".call-bubble-user.interim:last-child");
-        if (lastInterim) {
-            lastInterim.classList.remove("interim");
-            lastInterim.querySelector(".call-bubble-text").innerText = text;
+        if (callInterimBubble && callInterimBubble.parentNode) {
+            callInterimBubble.classList.remove("interim");
+            callInterimBubble.querySelector(".call-bubble-text").innerText = text;
+            callInterimBubble = null;
             callTranscript.scrollTop = callTranscript.scrollHeight;
             return;
         }
     }
-
     const bubble = document.createElement("div");
     bubble.className = "call-bubble " + (isUser ? "call-bubble-user" : "call-bubble-ai");
-    if (isUser && isInterim) bubble.classList.add("interim");
-
-    const label = document.createElement("span");
-    label.className = "call-bubble-label";
-    label.innerText = isUser ? "You" : "Tanmay AI";
-
-    const textEl = document.createElement("div");
-    textEl.className = "call-bubble-text";
-    textEl.innerText = text;
-
-    bubble.appendChild(label);
-    bubble.appendChild(textEl);
+    bubble.innerHTML = '<span class="call-bubble-label">' + (isUser ? "You" : "Tanmay AI") + '</span><div class="call-bubble-text"></div>';
+    bubble.querySelector(".call-bubble-text").innerText = text;
     callTranscript.appendChild(bubble);
-
-    requestAnimationFrame(() => {
-        callTranscript.scrollTop = callTranscript.scrollHeight;
-    });
+    requestAnimationFrame(() => { callTranscript.scrollTop = callTranscript.scrollHeight; });
 }
 
 function callClearTranscript() {
     if (!callTranscript) return;
     callTranscript.innerHTML = "";
-    if (callTranscriptEmpty) {
-        callTranscriptEmpty.style.display = "flex";
-        callTranscript.appendChild(callTranscriptEmpty);
-    }
+    callInterimBubble = null;
+    if (callTranscriptEmpty) { callTranscriptEmpty.style.display = "flex"; callTranscript.appendChild(callTranscriptEmpty); }
 }
 
-function startCallKeepAlive() {
-    stopCallKeepAlive();
-    callKeepAliveTimer = setInterval(() => {
-        if (!callModeActive) return;
-        if (callManuallyStopped) return;
-        if (!callIsListening) {
-            try {
-                if (callRecognition) callRecognition.start();
-            } catch (e) {}
-        }
-    }, 400);
+function stopCallRecognition() {
+    try { if (callRecognition) callRecognition.stop(); } catch (e) {}
+    callIsListening = false;
+    callMicBtn.classList.remove("active");
 }
 
-function stopCallKeepAlive() {
-    if (callKeepAliveTimer) {
-        clearInterval(callKeepAliveTimer);
-        callKeepAliveTimer = null;
-    }
+function startCallListening() {
+    if (!callModeActive) return;
+    if (callManuallyStopped) return;
+    if (callSpeaking) return;
+    if (callIsListening) return;
+    if (!callRecognition) return;
+    try { callRecognition.start(); } catch (e) {}
 }
 
 function startCallMode() {
     if (!currentUser) return showToast("Pehle login karo", "error");
-
-    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-        return showToast("Aapke browser mein mic support nahi hai", "error");
-    }
-
+    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) return showToast("Aapke browser mein mic support nahi hai", "error");
     callModeActive = true;
     callSpeaking = false;
     callManuallyStopped = false;
+    callIsListening = false;
     callHistoryContext = [];
-    callSavedCount = 0;
-
-    // Naya chat ID — sidebar mein dikhega
+    callFirstUserMessage = null;
     callChatId = "call_" + Date.now();
     sessionStorage.setItem(CHAT_SESSION_KEY, callChatId);
     currentChatId = callChatId;
-
     callOverlay.classList.remove("hidden");
     callStatus.innerText = "Connecting...";
     callSub.innerText = "Voice Call Mode";
     callWave.classList.add("idle");
-    callMicBtn.classList.add("active");
-    callIsListening = false;
+    callMicBtn.classList.remove("active");
     callClearTranscript();
-
-    setTimeout(() => {
-        if (!callModeActive) return;
-        startCallListening();
-        startCallKeepAlive();
-    }, 200);
-
     setTimeout(() => {
         if (!callModeActive) return;
         const greeting = "Namaste! Main Tanmay AI hoon. Batao kya jaanna hai?";
         callAddBubble(greeting, false, false);
         callHistoryContext.push({ role: "assistant", content: greeting });
         speakCallReply(greeting);
-    }, 900);
+    }, 700);
 }
 
 callBtn.addEventListener("click", startCallMode);
@@ -1397,17 +975,14 @@ function endCallMode() {
     callIsListening = false;
     callSpeaking = false;
     callManuallyStopped = true;
-    stopCallKeepAlive();
-    window.speechSynthesis.cancel();
-    try { if (callRecognition) callRecognition.stop(); } catch (e) {}
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    setTimeout(() => { try { window.speechSynthesis.cancel(); } catch (e) {} }, 50);
+    setTimeout(() => { try { window.speechSynthesis.cancel(); } catch (e) {} }, 150);
+    stopCallRecognition();
     callOverlay.classList.add("hidden");
     callWave.classList.add("idle");
     callMicBtn.classList.remove("active");
-
-    // Sidebar refresh — naya call chat dikh jaye
-    setTimeout(() => {
-        loadAllSidebarTopics(false);
-    }, 500);
+    setTimeout(() => { loadAllSidebarTopics(false); }, 500);
 }
 
 callEndBtn.addEventListener("click", endCallMode);
@@ -1417,13 +992,10 @@ callCcBtn.addEventListener("click", () => {
     localStorage.setItem("tanmay-cc", showCc ? "on" : "off");
     if (settingCcToggle) settingCcToggle.checked = showCc;
     callCcBtn.classList.toggle("active", showCc);
-    if (callTranscript) {
-        callTranscript.style.display = showCc ? "flex" : "none";
-    }
+    if (callTranscript) callTranscript.style.display = showCc ? "flex" : "none";
     showToast(showCc ? "Live chat ON" : "Live chat OFF", "info");
 });
 
-/* Setup call recognition */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     callRecognition = new SR();
@@ -1431,106 +1003,65 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     callRecognition.interimResults = true;
     callRecognition.lang = "en-US";
     callRecognition.maxAlternatives = 1;
-
     callRecognition.onstart = () => {
         callIsListening = true;
         callMicBtn.classList.add("active");
-        if (!callSpeaking) {
-            callWave.classList.remove("idle");
-            if (callStatus.innerText !== "Thinking...") {
-                callStatus.innerText = "Listening...";
-            }
-        }
+        callWave.classList.remove("idle");
+        if (!callSpeaking && callStatus.innerText !== "Thinking...") callStatus.innerText = "Listening...";
     };
-
     callRecognition.onresult = (ev) => {
-        let interim = "";
-        let finalText = "";
-
+        if (callSpeaking) return;
+        let interim = ""; let finalText = "";
         for (let i = ev.resultIndex; i < ev.results.length; i++) {
             const transcript = ev.results[i][0].transcript;
-            if (ev.results[i].isFinal) {
-                finalText += transcript;
-            } else {
-                interim += transcript;
-            }
+            if (ev.results[i].isFinal) finalText += transcript;
+            else interim += transcript;
         }
-
-        // Interim live dikhao
-        if (interim.trim() && !finalText.trim()) {
-            callAddBubble(interim.trim(), true, true);
-        }
-
-        // Final mila — barge-in + process
+        if (interim.trim() && !finalText.trim()) callAddBubble(interim.trim(), true, true);
         if (finalText && finalText.trim()) {
-            // AI bol raha ho to turant ruk
-            if (window.speechSynthesis.speaking || callSpeaking) {
-                try { window.speechSynthesis.cancel(); } catch (e) {}
-                callSpeaking = false;
-                callWave.classList.add("idle");
-            }
-
-            callAddBubble(finalText.trim(), true, false);
-            handleCallUserSpeech(finalText.trim());
+            const cleanText = finalText.trim();
+            if (cleanText.length < 2) return;
+            callAddBubble(cleanText, true, false);
+            if (!callFirstUserMessage) callFirstUserMessage = cleanText;
+            stopCallRecognition();
+            handleCallUserSpeech(cleanText);
         }
     };
-
     callRecognition.onend = () => {
         callIsListening = false;
         callMicBtn.classList.remove("active");
-
-        if (callModeActive && !callManuallyStopped) {
-            setTimeout(() => {
-                if (callModeActive && !callIsListening && !callManuallyStopped) {
-                    try { callRecognition.start(); } catch (e) {}
-                }
-            }, 150);
+        if (callModeActive && !callManuallyStopped && !callSpeaking) {
+            setTimeout(() => { if (callModeActive && !callIsListening && !callManuallyStopped && !callSpeaking) { try { callRecognition.start(); } catch (e) {} } }, 200);
         }
     };
-
     callRecognition.onerror = (ev) => {
         callIsListening = false;
         callMicBtn.classList.remove("active");
-        console.log("Call rec error:", ev.error);
-
-        if (callModeActive && !callManuallyStopped && ev.error !== "aborted") {
-            setTimeout(() => {
-                if (callModeActive && !callIsListening && !callManuallyStopped) {
-                    try { callRecognition.start(); } catch (e) {}
-                }
-            }, 300);
+        if (callModeActive && !callManuallyStopped && !callSpeaking && ev.error !== "aborted") {
+            setTimeout(() => { if (callModeActive && !callIsListening && !callManuallyStopped && !callSpeaking) { try { callRecognition.start(); } catch (e) {} } }, 400);
         }
     };
-}
-
-function startCallListening() {
-    if (!callModeActive) return;
-    if (callIsListening) return;
-    if (!callRecognition) {
-        callStatus.innerText = "Mic support nahi";
-        return;
-    }
-    try {
-        callRecognition.start();
-    } catch (e) {}
 }
 
 callMicBtn.addEventListener("click", () => {
     if (!callModeActive) return;
-
+    if (callSpeaking) {
+        try { window.speechSynthesis.cancel(); } catch (e) {}
+        callSpeaking = false;
+        callWave.classList.add("idle");
+        callStatus.innerText = "Listening...";
+        setTimeout(() => startCallListening(), 200);
+        return;
+    }
     if (callManuallyStopped) {
         callManuallyStopped = false;
         callMicBtn.classList.add("active");
         startCallListening();
-        startCallKeepAlive();
         callStatus.innerText = "Listening...";
         return;
     }
-
     callManuallyStopped = true;
-    try { callRecognition.stop(); } catch (e) {}
-    callIsListening = false;
-    callMicBtn.classList.remove("active");
+    stopCallRecognition();
     callWave.classList.add("idle");
     callStatus.innerText = "Muted — tap mic to resume";
 });
@@ -1538,168 +1069,92 @@ callMicBtn.addEventListener("click", () => {
 async function handleCallUserSpeech(userText) {
     callStatus.innerText = "Thinking...";
     callWave.classList.add("idle");
-
-    // User message save
-    const userMsgIndex = callHistoryContext.length;
     callHistoryContext.push({ role: "user", content: userText });
-
     try {
-        const res = await fetch(API_BASE + "/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                messages: [
-                    {
-                        role: "user",
-                        content: "VOICE CALL MODE: Answer in SHORT. Max 2-3 sentences. Be conversational and natural like a phone call. No long lists, no markdown, no emojis. Point-wise jawab mat do. Sirf kaam ki baat bolo."
-                    },
-                    ...callHistoryContext.slice(-6)
-                ],
-                userName: currentUser.displayName || "User",
-                userEmail: currentUser.email || "",
-                globalRules: globalRulesCache,
-                personalMemory: userPersonalMemoryCache
-            })
+        const res = await fetchAPI("/api/chat", {
+            messages: [
+                { role: "user", content: "VOICE CALL: Answer in 1-2 short sentences only. Phone call ki tarah natural. Koi list, koi bullet, koi heading nahi. Sirf seedha jawab. Max 25 words." },
+                ...callHistoryContext.slice(-6)
+            ],
+            userName: currentUser.displayName || "User",
+            userEmail: currentUser.email || "",
+            globalRules: globalRulesCache,
+            personalMemory: userPersonalMemoryCache
         });
-
         const data = await res.json();
-
         if (res.ok && data.reply) {
             const aiReply = data.reply;
             callHistoryContext.push({ role: "assistant", content: aiReply });
             callAddBubble(aiReply, false, false);
-
-            // Firebase mein save karo (call chat ke andar)
-            await saveMessageToFirebase(callChatId, userText, aiReply);
-
+            if (callFirstUserMessage) await saveMessageToFirebase(callChatId, userText, aiReply);
             speakCallReply(aiReply);
         } else {
             callStatus.innerText = "No response";
-            const fallback = "Sorry samajh nahi aaya. Dobara bolo.";
+            const fallback = "Samajh nahi aaya. Dobara bolo.";
             callAddBubble(fallback, false, false);
             callHistoryContext.push({ role: "assistant", content: fallback });
-            await saveMessageToFirebase(callChatId, userText, fallback);
+            if (callFirstUserMessage) await saveMessageToFirebase(callChatId, userText, fallback);
             speakCallReply(fallback);
         }
     } catch (e) {
-        console.log("Call api error:", e);
         callStatus.innerText = "Network error";
-        const fallback = "Network problem hai. Thodi der baad try karo.";
+        const fallback = "Server jaag raha hai. Thodi der baad bolo.";
         callAddBubble(fallback, false, false);
         callHistoryContext.push({ role: "assistant", content: fallback });
-        await saveMessageToFirebase(callChatId, userText, fallback);
+        if (callFirstUserMessage) await saveMessageToFirebase(callChatId, userText, fallback);
         speakCallReply(fallback);
     }
 }
 
 function speakCallReply(text) {
-    if (!("speechSynthesis" in window)) return;
-
+    if (!("speechSynthesis" in window)) { setTimeout(() => startCallListening(), 500); return; }
     const doSpeak = () => {
         try { window.speechSynthesis.cancel(); } catch (e) {}
-
         const u = new SpeechSynthesisUtterance(text);
-        u.lang = "en-US";
-        u.rate = 1.0;
-        u.pitch = 1.0;
-        u.volume = 1.0;
-
+        u.lang = "en-US"; u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
         const voices = window.speechSynthesis.getVoices();
-        const pref =
-            voices.find(v => v.lang.startsWith("en-IN")) ||
-            voices.find(v => v.lang.startsWith("en-US")) ||
-            voices.find(v => v.lang.startsWith("en"));
+        const pref = voices.find(v => v.lang.startsWith("en-IN")) || voices.find(v => v.lang.startsWith("en-US")) || voices.find(v => v.lang.startsWith("en"));
         if (pref) u.voice = pref;
-
         callSpeaking = true;
         callStatus.innerText = "Speaking...";
         callWave.classList.remove("idle");
-
+        stopCallRecognition();
         u.onend = () => {
             callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) {
-                callStatus.innerText = "Listening...";
-                if (!callIsListening && !callManuallyStopped) {
-                    startCallListening();
-                }
-            }
+            if (callModeActive && !callManuallyStopped) { callStatus.innerText = "Listening..."; setTimeout(() => startCallListening(), 300); }
         };
-
         u.onerror = () => {
             callSpeaking = false;
             callWave.classList.add("idle");
-            if (callModeActive) {
-                callStatus.innerText = "Listening...";
-                if (!callIsListening && !callManuallyStopped) {
-                    startCallListening();
-                }
-            }
+            if (callModeActive && !callManuallyStopped) { callStatus.innerText = "Listening..."; setTimeout(() => startCallListening(), 300); }
         };
-
         window.speechSynthesis.speak(u);
     };
-
-    if (window.speechSynthesis.getVoices().length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => {
-            window.speechSynthesis.onvoiceschanged = null;
-            doSpeak();
-        };
-        setTimeout(doSpeak, 300);
-    } else {
-        doSpeak();
-    }
+    if (window.speechSynthesis.getVoices().length === 0) { window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.onvoiceschanged = null; doSpeak(); }; setTimeout(doSpeak, 300); }
+    else doSpeak();
 }
 
-if ("speechSynthesis" in window) {
-    window.speechSynthesis.getVoices();
-}
+if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
 
 /* ============= CHIPS ============= */
-const CHIP_POOL = [
-    "Mujhe ek joke sunao", "Ek chhoti si kahani likho", "Aaj ka din kaisa rahega",
-    "Mujhe motivate karo", "Ek shayari sunao", "Kuchh interesting batao",
-    "Ek puzzle do mujhe", "Study tips do yaar", "Ek riddle poochho mujhse",
-    "Tanmay ke baare mein batao", "Ek mazedaar fact batao", "Mera mood kharaab hai",
-    "Python ke baare mein batao", "Ek film recommend karo", "Cricket ke baare mein batao",
-    "Ek quote do mujhe", "Mujhe kuchh naya sikhao", "Ek dost jaisa baat karo",
-    "Kuchh hasi-mazaak karo", "Ek achhi kitaab batao", "Mujhe ek brain teaser do"
-];
+const CHIP_POOL = ["Mujhe ek joke sunao", "Ek chhoti si kahani likho", "Aaj ka din kaisa rahega", "Mujhe motivate karo", "Ek shayari sunao", "Kuchh interesting batao", "Ek puzzle do mujhe", "Study tips do yaar", "Ek riddle poochho mujhse", "Tanmay ke baare mein batao", "Ek mazedaar fact batao", "Mera mood kharaab hai", "Python ke baare mein batao", "Ek film recommend karo", "Cricket ke baare mein batao", "Ek quote do mujhe", "Mujhe kuchh naya sikhao", "Ek dost jaisa baat karo", "Kuchh hasi-mazaak karo", "Ek achhi kitaab batao", "Mujhe ek brain teaser do"];
 
 function showWelcomeScreen() {
-    const displayName = currentUser
-        ? (currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User")
-        : "User";
-
-    const sub = isCurrentUserAdmin()
-        ? "Welcome back, " + displayName
-        : "Hello " + displayName + "! Kuchh bhi poochho.";
-
-    messagesContainer.innerHTML =
-        '<div class="welcome-block">' +
-            '<div class="welcome-logo">T</div>' +
-            '<h1 class="welcome-title">Tanmay AI</h1>' +
-            '<p class="welcome-sub">' + sub + '</p>' +
-            '<div class="suggestion-chips" id="suggestion-chips"></div>' +
-        '</div>';
-
+    const displayName = currentUser ? (currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User") : "User";
+    const sub = isCurrentUserAdmin() ? "Welcome back, " + displayName : "Hello " + displayName + "! Kuchh bhi poochho.";
+    messagesContainer.innerHTML = '<div class="welcome-block"><div class="welcome-logo">T</div><h1 class="welcome-title">Tanmay AI</h1><p class="welcome-sub">' + sub + '</p><div class="suggestion-chips" id="suggestion-chips"></div></div>';
     const shuffled = [...CHIP_POOL].sort(() => Math.random() - 0.5);
     const chosen = shuffled.slice(0, 4);
     const cc = document.getElementById("suggestion-chips");
-
     chosen.forEach(text => {
         const b = document.createElement("button");
-        b.className = "chip";
-        b.innerText = text;
-        b.addEventListener("click", () => {
-            userInput.value = text;
-            sendMessage();
-        });
+        b.className = "chip"; b.innerText = text;
+        b.addEventListener("click", () => { userInput.value = text; sendMessage(); });
         cc.appendChild(b);
     });
 }
 
-/* ============= NEW CHAT ============= */
 function startNewChatSession() {
     currentChatId = "chat_" + Date.now();
     sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
@@ -1707,163 +1162,87 @@ function startNewChatSession() {
     showWelcomeScreen();
     window.speechSynthesis.cancel();
     resetSpeakingButtons();
-
     pendingImage = null;
     if (pendingImageBar) pendingImageBar.classList.add("hidden");
-
-    document.querySelectorAll(".history-item-wrapper").forEach(el => {
-        el.classList.remove("active-chat-topic");
-    });
+    document.querySelectorAll(".history-item-wrapper").forEach(el => el.classList.remove("active-chat-topic"));
 }
 
-newChatBtn.addEventListener("click", () => {
-    switchView("chat");
-    startNewChatSession();
-    if (window.innerWidth <= 768) closeSidebar();
-    userInput.focus();
-});
+newChatBtn.addEventListener("click", () => { switchView("chat"); startNewChatSession(); if (window.innerWidth <= 768) closeSidebar(); userInput.focus(); });
 
-/* ============= VOICE INPUT ============= */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SR();
-    recognition.continuous = false;
-    recognition.lang = "en-US";
-    recognition.onstart = () => {
-        micBtn.classList.add("listening");
-        userInput.placeholder = "Listening...";
-    };
-    recognition.onend = () => {
-        micBtn.classList.remove("listening");
-        userInput.placeholder = "Ask Tanmay AI...";
-    };
-    recognition.onresult = ev => {
-        userInput.value = ev.results[0][0].transcript;
-        if (autoSendVoice) sendMessage();
-    };
+    recognition.continuous = false; recognition.lang = "en-US";
+    recognition.onstart = () => { micBtn.classList.add("listening"); userInput.placeholder = "Listening..."; };
+    recognition.onend = () => { micBtn.classList.remove("listening"); userInput.placeholder = "Ask Tanmay AI..."; };
+    recognition.onresult = ev => { userInput.value = ev.results[0][0].transcript; if (autoSendVoice) sendMessage(); };
 }
 
-micBtn.addEventListener("click", () => {
-    if (recognition) {
-        try { recognition.start(); } catch (e) {}
-    } else {
-        showToast("Mic not supported", "error");
-    }
-});
+micBtn.addEventListener("click", () => { if (recognition) { try { recognition.start(); } catch (e) {} } else showToast("Mic not supported", "error"); });
 
-/* ============= VOICE OUTPUT ============= */
 toggleVoiceBtn.addEventListener("click", () => {
     isVoiceEnabled = !isVoiceEnabled;
-    toggleVoiceBtn.innerHTML = isVoiceEnabled
-        ? '<i class="fa-solid fa-volume-high"></i>'
-        : '<i class="fa-solid fa-volume-xmark"></i>';
+    toggleVoiceBtn.innerHTML = isVoiceEnabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
     settingVoiceToggle.checked = isVoiceEnabled;
     localStorage.setItem("tanmay-voice", isVoiceEnabled ? "on" : "off");
-    if (!isVoiceEnabled) {
-        window.speechSynthesis.cancel();
-        resetSpeakingButtons();
-    }
+    if (!isVoiceEnabled) { window.speechSynthesis.cancel(); resetSpeakingButtons(); }
     showToast(isVoiceEnabled ? "Voice ON" : "Voice OFF", "info");
 });
 
 window.speakIndividualMessage = function (buttonElement) {
     const row = buttonElement.closest(".message-row");
     const text = row.querySelector(".message-text").innerText;
-
-    if (currentSpeakingButton === buttonElement && window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        resetSpeakingButtons();
-        return;
-    }
-
+    if (currentSpeakingButton === buttonElement && window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); resetSpeakingButtons(); return; }
     window.speechSynthesis.cancel();
     resetSpeakingButtons();
-
     buttonElement.innerHTML = '<i class="fa-solid fa-stop"></i>';
     buttonElement.classList.add("speaking-now");
     currentSpeakingButton = buttonElement;
-
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
-    u.onend = resetSpeakingButtons;
-    u.onerror = resetSpeakingButtons;
+    u.lang = "en-US"; u.onend = resetSpeakingButtons; u.onerror = resetSpeakingButtons;
     window.speechSynthesis.speak(u);
 };
 
 function resetSpeakingButtons() {
-    document.querySelectorAll(".msg-action-btn.speak-btn").forEach(btn => {
-        btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
-        btn.classList.remove("speaking-now");
-    });
+    document.querySelectorAll(".msg-action-btn.speak-btn").forEach(btn => { btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>'; btn.classList.remove("speaking-now"); });
     currentSpeakingButton = null;
 }
 
-/* ============= MESSAGE BUILDER ============= */
 function buildMessageRow(text, isUser, timestamp) {
     if (!timestamp) timestamp = Date.now();
-
     const row = document.createElement("div");
     row.classList.add("message-row", isUser ? "user-row" : "ai-row");
-
     const bubble = document.createElement("div");
     bubble.classList.add("message", isUser ? "user-message" : "ai-message");
-
-    const tn = document.createElement("div");
-    tn.classList.add("message-text");
-    tn.innerText = text;
-
-    const tm = document.createElement("div");
-    tm.classList.add("msg-time");
-    tm.innerText = formatTime(timestamp);
-
-    bubble.appendChild(tn);
-    bubble.appendChild(tm);
-    row.appendChild(bubble);
-
+    const tn = document.createElement("div"); tn.classList.add("message-text"); tn.innerText = text;
+    const tm = document.createElement("div"); tm.classList.add("msg-time"); tm.innerText = formatTime(timestamp);
+    bubble.appendChild(tn); bubble.appendChild(tm); row.appendChild(bubble);
     const actions = document.createElement("div");
     actions.classList.add("msg-actions", isUser ? "user-actions" : "ai-actions");
-
     if (!isUser) {
         const sb = document.createElement("button");
-        sb.className = "msg-action-btn speak-btn";
-        sb.title = "Listen";
+        sb.className = "msg-action-btn speak-btn"; sb.title = "Listen";
         sb.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
-        sb.onclick = e => {
-            e.stopPropagation();
-            speakIndividualMessage(sb);
-        };
+        sb.onclick = e => { e.stopPropagation(); speakIndividualMessage(sb); };
         actions.appendChild(sb);
     }
-
     const cb = document.createElement("button");
-    cb.className = "msg-action-btn";
-    cb.title = "Copy";
+    cb.className = "msg-action-btn"; cb.title = "Copy";
     cb.innerHTML = '<i class="fa-solid fa-copy"></i>';
-    cb.onclick = e => {
-        e.stopPropagation();
-        copyToClipboard(text);
-    };
+    cb.onclick = e => { e.stopPropagation(); copyToClipboard(text); };
     actions.appendChild(cb);
-
     const mb = document.createElement("button");
-    mb.className = "msg-action-btn msg-menu-btn";
-    mb.title = "More";
+    mb.className = "msg-action-btn msg-menu-btn"; mb.title = "More";
     mb.innerHTML = '<i class="fa-solid fa-ellipsis-vertical"></i>';
-    mb.onclick = e => {
-        e.stopPropagation();
-        openMessageMenu(mb, text, isUser);
-    };
+    mb.onclick = e => { e.stopPropagation(); openMessageMenu(mb, text, isUser); };
     actions.appendChild(mb);
-
     row.appendChild(actions);
-
     bubble.onclick = e => {
         if (e.target.closest("button")) return;
         if (e.target.closest(".message-image")) return;
         if (window.getSelection().toString()) return;
         row.classList.toggle("show-actions");
     };
-
     return row;
 }
 
@@ -1872,126 +1251,68 @@ function openMessageMenu(anchorBtn, text, isUser) {
         { label: "Copy", icon: "fa-copy", action: () => copyToClipboard(text) },
         { label: "Share", icon: "fa-share", action: () => shareMessage(text) }
     ];
-
-    if (!isUser) {
-        items.push({
-            label: "Read Aloud",
-            icon: "fa-volume-high",
-            action: () => {
-                window.speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(text);
-                u.lang = "en-US";
-                window.speechSynthesis.speak(u);
-                showToast("Reading...", "info");
-            }
-        });
-    }
-
+    if (!isUser) items.push({ label: "Read Aloud", icon: "fa-volume-high", action: () => { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; window.speechSynthesis.speak(u); showToast("Reading...", "info"); } });
     openMenu(anchorBtn, items, isUser);
 }
 
-function appendUserMessage(text, timestamp) {
-    const row = buildMessageRow(text, true, timestamp);
-    messagesContainer.appendChild(row);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    return row;
-}
-
+function appendUserMessage(text, timestamp) { const row = buildMessageRow(text, true, timestamp); messagesContainer.appendChild(row); messagesContainer.scrollTop = messagesContainer.scrollHeight; return row; }
 function appendAIMessage(text, shouldSpeak, qText, timestamp) {
     const row = buildMessageRow(text, false, timestamp);
     messagesContainer.appendChild(row);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-    if (isVoiceEnabled && shouldSpeak && !isInitialLoadRunning) {
-        const sb = row.querySelector(".speak-btn");
-        if (sb) window.speakIndividualMessage(sb);
-    }
+    if (isVoiceEnabled && shouldSpeak && !isInitialLoadRunning) { const sb = row.querySelector(".speak-btn"); if (sb) window.speakIndividualMessage(sb); }
     return row;
 }
 
-/* ============= PERSONAL MEMORY ============= */
 async function savePersonalMemory(content) {
     if (!currentUser) return;
-    await addDoc(
-        collection(db, "users_memory/" + currentUser.uid + "/memories"),
-        { memory: content, timestamp: Date.now() }
-    );
+    await addDoc(collection(db, "users_memory/" + currentUser.uid + "/memories"), { memory: content, timestamp: Date.now() });
     userPersonalMemoryCache.push(content);
 }
 
-/* ============= SAVE CHAT ============= */
 async function saveMessageToFirebase(chatId, userText, aiText) {
     if (!currentUser) return;
     try {
         const nm = currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
         await addDoc(collection(db, "chat_messages"), {
-            uid: currentUser.uid,
-            userName: nm,
+            uid: currentUser.uid, userName: nm,
             userEmail: currentUser.email || "No Email",
             userPhoto: currentUser.photoURL || "",
-            chatId: chatId,
-            userText: userText,
-            aiText: aiText,
-            timestamp: Date.now()
+            chatId: chatId, userText: userText, aiText: aiText, timestamp: Date.now()
         });
         loadAllSidebarTopics(false);
-    } catch (e) {
-        console.error("Firebase save error:", e);
-    }
+    } catch (e) { console.error("Firebase save error:", e); }
 }
 
-/* ============= SIDEBAR TOPICS ============= */
 async function loadAllSidebarTopics(isInitialLoad) {
     if (!currentUser) return;
-
     try {
         historyList.innerHTML = "";
         const q = query(collection(db, "chat_messages"));
         const snap = await getDocs(q);
         const map = new Map();
-
         snap.forEach(d => {
             const x = d.data();
             if (x.uid !== currentUser.uid) return;
             const cid = x.chatId;
             if (!cid) return;
-
-            if (!map.has(cid)) {
-                map.set(cid, {
-                    chatId: cid,
-                    firstUserText: x.userText || "Chat",
-                    firstTimestamp: x.timestamp || 0,
-                    latestTimestamp: x.timestamp || 0
-                });
-            } else {
-                const c = map.get(cid);
-                const ts = x.timestamp || 0;
-                if (ts < c.firstTimestamp) {
-                    c.firstTimestamp = ts;
-                    c.firstUserText = x.userText || c.firstUserText;
-                }
+            if (!map.has(cid)) map.set(cid, { chatId: cid, firstUserText: x.userText || "Chat", firstTimestamp: x.timestamp || 0, latestTimestamp: x.timestamp || 0 });
+            else {
+                const c = map.get(cid); const ts = x.timestamp || 0;
+                if (ts < c.firstTimestamp) { c.firstTimestamp = ts; c.firstUserText = x.userText || c.firstUserText; }
                 if (ts > c.latestTimestamp) c.latestTimestamp = ts;
             }
         });
-
         const list = Array.from(map.values());
         list.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
         list.forEach(i => addTopicToSidebarUI(i.firstUserText, i.chatId));
-
         if (isInitialLoad) {
             const saved = sessionStorage.getItem(CHAT_SESSION_KEY);
-            if (saved && map.has(saved)) {
-                currentChatId = saved;
-                await loadFullChatSession(saved);
-            } else {
-                startNewChatSession();
-            }
+            if (saved && map.has(saved)) { currentChatId = saved; await loadFullChatSession(saved); }
+            else startNewChatSession();
             isInitialLoadRunning = false;
         }
-    } catch (e) {
-        console.error("Sidebar error:", e);
-        isInitialLoadRunning = false;
-    }
+    } catch (e) { console.error("Sidebar error:", e); isInitialLoadRunning = false; }
 }
 
 function addTopicToSidebarUI(text, chatId) {
@@ -1999,95 +1320,57 @@ function addTopicToSidebarUI(text, chatId) {
     w.classList.add("history-item-wrapper");
     w.dataset.text = text || "";
     if (chatId === currentChatId) w.classList.add("active-chat-topic");
-
     const sp = document.createElement("span");
     sp.classList.add("history-text");
-
-    // Call chat ho to phone icon
     const isCall = chatId.indexOf("call_") === 0;
     sp.innerText = (isCall ? "📞 " : "") + (text && text.length > 18 ? text.substring(0, 18) + "..." : (text || "Chat"));
-
     sp.onclick = () => {
         currentChatId = chatId;
         sessionStorage.setItem(CHAT_SESSION_KEY, chatId);
-        document.querySelectorAll(".history-item-wrapper").forEach(el => {
-            el.classList.remove("active-chat-topic");
-        });
+        document.querySelectorAll(".history-item-wrapper").forEach(el => el.classList.remove("active-chat-topic"));
         w.classList.add("active-chat-topic");
         switchView("chat");
         loadFullChatSession(chatId);
         if (window.innerWidth <= 768) closeSidebar();
     };
-
     const del = document.createElement("button");
     del.classList.add("delete-item-btn");
     del.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-
     del.onclick = async e => {
         e.stopPropagation();
         if (!confirm("Delete this chat?")) return;
-
         const q = query(collection(db, "chat_messages"), where("chatId", "==", chatId));
         const snap = await getDocs(q);
-
-        for (const ds of snap.docs) {
-            if (ds.data().uid === currentUser.uid) {
-                await deleteDoc(doc(db, "chat_messages", ds.id));
-            }
-        }
-
-        if (currentChatId === chatId) {
-            sessionStorage.removeItem(CHAT_SESSION_KEY);
-            startNewChatSession();
-        }
-
+        for (const ds of snap.docs) if (ds.data().uid === currentUser.uid) await deleteDoc(doc(db, "chat_messages", ds.id));
+        if (currentChatId === chatId) { sessionStorage.removeItem(CHAT_SESSION_KEY); startNewChatSession(); }
         loadAllSidebarTopics(false);
         showToast("Chat deleted", "success");
     };
-
-    w.appendChild(sp);
-    w.appendChild(del);
+    w.appendChild(sp); w.appendChild(del);
     historyList.appendChild(w);
 }
 
-/* ============= LOAD FULL CHAT ============= */
 async function loadFullChatSession(chatId) {
     messagesContainer.innerHTML = "";
     chatHistoryContext = [];
-
     try {
         const q = query(collection(db, "chat_messages"), where("chatId", "==", chatId));
         const snap = await getDocs(q);
         const arr = [];
-
-        snap.forEach(d => {
-            const x = d.data();
-            if (x.uid === currentUser.uid) arr.push(x);
-        });
-
+        snap.forEach(d => { const x = d.data(); if (x.uid === currentUser.uid) arr.push(x); });
         arr.sort((a, b) => a.timestamp - b.timestamp);
-
         for (const x of arr) {
             appendUserMessage(x.userText, x.timestamp - 1000);
             chatHistoryContext.push({ role: "user", content: x.userText });
             appendAIMessage(x.aiText, false, x.userText, x.timestamp);
             chatHistoryContext.push({ role: "assistant", content: x.aiText });
         }
-
         scrollToBottom();
-    } catch (e) {
-        console.error("Load chat error:", e);
-    }
+    } catch (e) { console.error("Load chat error:", e); }
 }
 
-/* ============= KEYBOARD ============= */
 document.addEventListener("keydown", e => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        switchView("chat");
-        startNewChatSession();
-        showToast("New chat", "info");
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); switchView("chat"); startNewChatSession(); showToast("New chat", "info"); }
     if (e.key === "Escape") {
         if (callModeActive) endCallMode();
         else if (openDropdown) closeDropdown();
@@ -2096,5 +1379,3 @@ document.addEventListener("keydown", e => {
         else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) closeSidebar();
     }
 });
-
-/* ============= END ============= */
