@@ -40,7 +40,6 @@ const ADMIN_EMAILS = [
 const googleOAuthUrl =
     `https://tanmay-ai-1190d.firebaseapp.com/__/auth/handler?providerId=google.com&authType=signInWithRedirect&apiKey=${firebaseConfig.apiKey}`;
 
-// ELEMENTS
 const loginContainer = document.getElementById("login-container");
 const appContainer = document.getElementById("app-container");
 const googleLoginBtn = document.getElementById("google-login-btn");
@@ -64,7 +63,6 @@ const themeToggleBtn = document.getElementById("theme-toggle-btn");
 const chatSearchInput = document.getElementById("chat-search-input");
 const toastContainer = document.getElementById("toast-container");
 
-// STATE
 let isVoiceEnabled = true;
 let recognition = null;
 let currentSpeakingButton = null;
@@ -275,6 +273,42 @@ chatSearchInput.addEventListener("input", e => {
 });
 
 // =====================================================
+// SUGGESTION CHIPS POOL
+// =====================================================
+const CHIP_POOL = [
+    "Mujhe ek joke sunao",
+    "Ek chhoti si kahani likho",
+    "Aaj ka din kaisa rahega",
+    "Mujhe motivate karo",
+    "Ek shayari sunao",
+    "Kuchh interesting batao",
+    "Ek puzzle do mujhe",
+    "Study tips do yaar",
+    "Ek riddle poochho mujhse",
+    "Tanmay ke baare mein batao",
+    "Ek mazedaar fact batao",
+    "Mera mood kharaab hai, kuchh acha bolo",
+    "Python ke baare mein batao",
+    "Ek film recommend karo",
+    "Cricket ke baare mein kuchh batao",
+    "Aaj ka mausam kaisa hai",
+    "Ek quote do mujhe",
+    "Mujhe kuchh naya sikhao",
+    "Ek dost jaisa baat karo",
+    "Kuchh hasi-mazaak karo",
+    "Ek achhi kitaab batao",
+    "Mujhe ek brain teaser do",
+    "Space ke baare mein batao",
+    "History ki ek rochak baat batao",
+    "Mujhe ek nayi hobby suggest karo",
+    "Ek achha gaana recommend karo",
+    "Kuchh motivation quotes do",
+    "Mujhe coding ke baare mein sikhao",
+    "Ek ajeeb sa fact batao",
+    "Kaise time manage karun batao"
+];
+
+// =====================================================
 // WELCOME SCREEN
 // =====================================================
 function showWelcomeScreen() {
@@ -283,7 +317,7 @@ function showWelcomeScreen() {
         : "User";
 
     const sub = isCurrentUserAdmin()
-        ? `Welcome back, ${displayName} 👑`
+        ? `Welcome back, ${displayName}`
         : `Hello ${displayName}! Kuchh bhi poochho.`;
 
     messagesContainer.innerHTML = `
@@ -291,21 +325,25 @@ function showWelcomeScreen() {
             <div class="welcome-logo">T</div>
             <h1 class="welcome-title">Tanmay AI</h1>
             <p class="welcome-sub">${sub}</p>
-            <div class="suggestion-chips" id="suggestion-chips">
-                <button class="chip" data-prompt="Mujhe ek mazedaar joke sunao">Mujhe ek joke sunao</button>
-                <button class="chip" data-prompt="Ek chhoti si kahani likho">Ek kahani likho</button>
-                <button class="chip" data-prompt="Aaj ka din kaisa rahega batao">Aaj ka din kaisa rahega</button>
-                <button class="chip" data-prompt="Mujhe motivate karo">Motivate karo mujhe</button>
-            </div>
+            <div class="suggestion-chips" id="suggestion-chips"></div>
         </div>
     `;
 
-    document.querySelectorAll(".chip").forEach(chip => {
-        chip.addEventListener("click", () => {
-            const p = chip.getAttribute("data-prompt");
-            userInput.value = p;
+    const shuffled = [...CHIP_POOL].sort(() => Math.random() - 0.5);
+    const chosen = shuffled.slice(0, 4);
+
+    const chipsContainer = document.getElementById("suggestion-chips");
+
+    chosen.forEach(text => {
+        const btn = document.createElement("button");
+        btn.className = "chip";
+        btn.setAttribute("data-prompt", text);
+        btn.innerText = text;
+        btn.addEventListener("click", () => {
+            userInput.value = text;
             sendMessage();
         });
+        chipsContainer.appendChild(btn);
     });
 }
 
@@ -496,7 +534,6 @@ async function sendMessage() {
         localStorage.setItem("activeChatId", currentChatId);
     }
 
-    // Remove welcome block if exists
     const welcomeBlock = messagesContainer.querySelector(".welcome-block");
     if (welcomeBlock) welcomeBlock.remove();
 
@@ -508,7 +545,6 @@ async function sendMessage() {
     const userName =
         currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
 
-    // Memory trigger
     const memoryTriggerRegex =
         /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|suno:|sun:)\s*(.*)/i;
     const match = text.match(memoryTriggerRegex);
@@ -564,7 +600,6 @@ async function sendMessage() {
 
             appendAIMessage(aiResponse, true, text);
 
-            // Model info for admin
             if (
                 isCurrentUserAdmin() &&
                 data.showModel &&
@@ -665,7 +700,6 @@ async function loadAllSidebarTopics(isInitialLoad) {
             addTopicToSidebarUI(item.userText, item.chatId);
         });
 
-        // Re-apply search filter if any
         const term = chatSearchInput.value.toLowerCase().trim();
         if (term) {
             document.querySelectorAll(".history-item-wrapper").forEach(el => {
