@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "Tanmay AI",
   "short_name": "Tanmay AI",
   "description": "Your personal AI assistant by Tanmay Sahu",
@@ -13,16 +14,22 @@
   "dir": "ltr",
   "icons": [
     {
-      "src": "./icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "https://img.icons8.com/fluent/512/artificial-intelligence.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "https://img.icons8.com/fluent/512/artificial-intelligence.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ]
 }

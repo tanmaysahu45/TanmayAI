@@ -1,4 +1,4 @@
-const CACHE_NAME = "tanmay-ai-v3";
+const CACHE_NAME = "tanmay-ai-v4";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -58,7 +58,6 @@ self.addEventListener("fetch", e => {
   e.respondWith(
     fetch(req)
       .then(res => {
-        // Cache fresh response
         if (res && res.ok && res.type === "basic") {
           const clone = res.clone();
           caches.open(CACHE_NAME).then(c => c.put(req, clone));
