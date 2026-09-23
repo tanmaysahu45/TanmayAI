@@ -4,26 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#0f0f10">
-    <meta name="description" content="Tanmay AI - Your personal AI assistant by Tanmay Sahu">
     <title>Tanmay AI</title>
-
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="icon.svg">
     <link rel="apple-touch-icon" href="icon.svg">
-
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Tanmay AI">
     <meta name="mobile-web-app-capable" content="yes">
-
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=7">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
     <div id="toast-container"></div>
 
-    <!-- LOGIN -->
     <div class="login-container" id="login-container">
         <div class="login-card">
             <div class="login-logo">
@@ -39,50 +33,36 @@
         </div>
     </div>
 
-    <!-- APP -->
     <div class="app-container hidden" id="app-container">
-
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-        <!-- SIDEBAR -->
         <aside class="sidebar collapsed" id="sidebar">
             <div class="sidebar-content">
-
                 <div class="sidebar-top">
                     <button class="new-chat-btn" id="new-chat-btn">
-                        <i class="fa-solid fa-plus"></i>
-                        <span>New Chat</span>
+                        <i class="fa-solid fa-plus"></i><span>New Chat</span>
                     </button>
-                    <button class="sidebar-close-btn" id="sidebar-close-btn" title="Close">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
+                    <button class="sidebar-close-btn" id="sidebar-close-btn"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-
                 <div class="sidebar-nav">
                     <button class="sidebar-nav-btn active" id="nav-chat">
-                        <i class="fa-solid fa-comments"></i>
-                        <span>Chat</span>
+                        <i class="fa-solid fa-comments"></i><span>Chat</span>
                     </button>
                     <button class="sidebar-nav-btn" id="nav-study">
-                        <i class="fa-solid fa-graduation-cap"></i>
-                        <span>Study</span>
+                        <i class="fa-solid fa-graduation-cap"></i><span>Study</span>
                     </button>
                 </div>
-
                 <div class="search-box">
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="text" id="chat-search-input" placeholder="Search chats...">
                 </div>
-
                 <div class="history-container">
                     <h3>Recent</h3>
                     <div id="history-list"></div>
                 </div>
-
                 <div class="sidebar-footer">
                     <button class="settings-btn" id="open-settings-btn">
-                        <i class="fa-solid fa-gear"></i>
-                        <span>Settings</span>
+                        <i class="fa-solid fa-gear"></i><span>Settings</span>
                     </button>
                     <div class="user-profile" id="user-profile-btn">
                         <img id="user-avatar" src="" alt="User" style="width:32px; height:32px; border-radius:50%; display:none;">
@@ -93,66 +73,44 @@
                         </div>
                     </div>
                 </div>
-
             </div>
         </aside>
 
-        <!-- MAIN -->
         <main class="chat-area">
-
             <header class="chat-header">
                 <div class="header-left">
-                    <button id="sidebar-toggle-btn" title="Menu">
-                        <i class="fa-solid fa-bars"></i>
-                    </button>
+                    <button id="sidebar-toggle-btn"><i class="fa-solid fa-bars"></i></button>
                     <div class="brand">
                         <div class="brand-logo">T</div>
                         <h2 id="header-title">Tanmay AI</h2>
                     </div>
                 </div>
                 <div class="header-right">
-                    <button id="theme-toggle-btn" title="Theme">
-                        <i class="fa-solid fa-sun"></i>
-                    </button>
-                    <button id="toggle-voice-btn" title="Voice">
-                        <i class="fa-solid fa-volume-high"></i>
-                    </button>
-                    <button id="header-menu-btn" title="More">
-                        <i class="fa-solid fa-ellipsis-vertical"></i>
-                    </button>
+                    <button id="theme-toggle-btn"><i class="fa-solid fa-sun"></i></button>
+                    <button id="toggle-voice-btn"><i class="fa-solid fa-volume-high"></i></button>
+                    <button id="header-menu-btn"><i class="fa-solid fa-ellipsis-vertical"></i></button>
                 </div>
             </header>
 
             <div class="messages-container" id="messages-container"></div>
 
-            <!-- STUDY MODE -->
             <div class="study-container hidden" id="study-container">
                 <div class="study-tabs">
-                    <button class="study-tab active" data-tab="notes">
-                        <i class="fa-solid fa-note-sticky"></i> Notes
-                    </button>
-                    <button class="study-tab" data-tab="quiz">
-                        <i class="fa-solid fa-circle-question"></i> Quiz
-                    </button>
-                    <button class="study-tab" data-tab="formula">
-                        <i class="fa-solid fa-square-root-variable"></i> Formula
-                    </button>
+                    <button class="study-tab active" data-tab="notes"><i class="fa-solid fa-note-sticky"></i> Notes</button>
+                    <button class="study-tab" data-tab="quiz"><i class="fa-solid fa-circle-question"></i> Quiz</button>
+                    <button class="study-tab" data-tab="formula"><i class="fa-solid fa-square-root-variable"></i> Formula</button>
                 </div>
-
                 <div class="study-panel active" id="study-panel-notes">
                     <div class="study-notes-input">
-                        <input type="text" id="note-title-input" placeholder="Title (jaise: Photosynthesis)">
+                        <input type="text" id="note-title-input" placeholder="Title">
                         <textarea id="note-content-input" placeholder="Notes likho..." rows="4"></textarea>
-                        <button id="save-note-btn">
-                            <i class="fa-solid fa-plus"></i> Add Note
-                        </button>
+                        <button id="save-note-btn"><i class="fa-solid fa-plus"></i> Add Note</button>
                     </div>
                     <div class="study-list" id="notes-list"></div>
                 </div>
-
                 <div class="study-panel" id="study-panel-quiz">
                     <div class="quiz-setup">
-                        <input type="text" id="quiz-topic-input" placeholder="Topic likho (jaise: Solar System)">
+                        <input type="text" id="quiz-topic-input" placeholder="Topic likho">
                         <div class="quiz-count-row">
                             <label>Sawaal:</label>
                             <select id="quiz-count-select">
@@ -161,99 +119,67 @@
                                 <option value="10">10</option>
                             </select>
                         </div>
-                        <button id="start-quiz-btn">
-                            <i class="fa-solid fa-play"></i> Quiz Shuru Karo
-                        </button>
+                        <button id="start-quiz-btn"><i class="fa-solid fa-play"></i> Quiz Shuru Karo</button>
                     </div>
                     <div class="quiz-display hidden" id="quiz-display"></div>
                 </div>
-
                 <div class="study-panel" id="study-panel-formula">
                     <div class="formula-input">
-                        <input type="text" id="formula-topic-input" placeholder="Formula ka naam (jaise: Area of Circle)">
-                        <input type="text" id="formula-content-input" placeholder="Formula (jaise: πr²)">
-                        <button id="save-formula-btn">
-                            <i class="fa-solid fa-plus"></i> Add
-                        </button>
+                        <input type="text" id="formula-topic-input" placeholder="Formula ka naam">
+                        <input type="text" id="formula-content-input" placeholder="Formula">
+                        <button id="save-formula-btn"><i class="fa-solid fa-plus"></i> Add</button>
                     </div>
                     <div class="study-list" id="formula-list"></div>
                 </div>
             </div>
 
-            <!-- FOOTER -->
             <footer class="chat-footer" id="chat-footer">
-
                 <div class="pending-image-bar hidden" id="pending-image-bar">
                     <div class="pending-thumb-wrap">
                         <img id="pending-thumb" src="" alt="">
-                        <button class="pending-remove" id="pending-remove">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
+                        <button class="pending-remove" id="pending-remove"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <input type="text" id="pending-caption" placeholder="Caption likho... (optional)" autocomplete="off">
                 </div>
-
                 <div class="input-wrapper">
-
-                    <button id="plus-btn" title="Attach">
-                        <i class="fa-solid fa-plus"></i>
-                    </button>
-
+                    <button id="plus-btn" title="Attach"><i class="fa-solid fa-plus"></i></button>
                     <input type="file" id="image-input" accept="image/*" hidden>
                     <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
-                    <input type="file" id="file-input" accept="image/*,.pdf,.txt,.doc,.docx" hidden>
-
-                    <button id="mic-btn" title="Speak">
-                        <i class="fa-solid fa-microphone"></i>
-                    </button>
-
+                    <input type="file" id="file-input" accept="image/*,.pdf,.txt" hidden>
+                    <button id="mic-btn" title="Speak"><i class="fa-solid fa-microphone"></i></button>
                     <input type="text" id="user-input" placeholder="Ask Tanmay AI..." autocomplete="off">
-
-                    <button id="call-btn" title="Voice Call">
-                        <i class="fa-solid fa-phone"></i>
-                    </button>
-
-                    <button id="send-btn" title="Send">
-                        <i class="fa-solid fa-paper-plane"></i>
-                    </button>
-
+                    <button id="call-btn" title="Voice Call"><i class="fa-solid fa-phone"></i></button>
+                    <button id="send-btn" title="Send"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
-
                 <div class="footer-credit">Made by Tanmay Sahu</div>
             </footer>
-
         </main>
     </div>
 
-    <!-- CALL MODE -->
+    <!-- ============ CALL MODE — FULL TRANSCRIPT ============ -->
     <div class="call-overlay hidden" id="call-overlay">
         <div class="call-screen">
 
-            <div class="call-status" id="call-status">Connecting...</div>
-
-            <div class="call-avatar">
-                <div class="call-avatar-inner">T</div>
-                <div class="call-ring"></div>
+            <div class="call-header-bar">
+                <div class="call-avatar-small">
+                    <div class="call-avatar-inner-small">T</div>
+                    <div class="call-ring"></div>
+                </div>
+                <div class="call-header-info">
+                    <div class="call-name">Tanmay AI</div>
+                    <div class="call-status" id="call-status">Connecting...</div>
+                </div>
             </div>
 
-            <div class="call-name">Tanmay AI</div>
-            <div class="call-sub" id="call-sub">Voice Call Mode</div>
+            <div class="call-chat-log" id="call-chat-log"></div>
 
             <div class="call-wave" id="call-wave">
                 <span></span><span></span><span></span><span></span><span></span>
             </div>
 
-            <div class="call-captions" id="call-captions">
-                <div class="cc-line cc-ai" id="cc-ai-line"></div>
-                <div class="cc-line cc-user" id="cc-user-line"></div>
-            </div>
-
             <div class="call-controls">
                 <button class="call-btn-mute" id="call-mic-btn" title="Mic">
                     <i class="fa-solid fa-microphone"></i>
-                </button>
-                <button class="call-btn-cc active" id="call-cc-btn" title="Captions">
-                    <i class="fa-solid fa-closed-captioning"></i>
                 </button>
                 <button class="call-btn-end" id="call-end-btn" title="End">
                     <i class="fa-solid fa-phone-slash"></i>
@@ -263,19 +189,14 @@
         </div>
     </div>
 
-    <!-- SETTINGS -->
+    <!-- ============ SETTINGS ============ -->
     <div class="settings-overlay hidden" id="settings-overlay">
         <div class="settings-panel">
-
             <div class="settings-header">
                 <h2><i class="fa-solid fa-gear"></i> Settings</h2>
-                <button class="settings-close" id="close-settings-btn">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <button class="settings-close" id="close-settings-btn"><i class="fa-solid fa-xmark"></i></button>
             </div>
-
             <div class="settings-body">
-
                 <section class="settings-section">
                     <h3>Account</h3>
                     <div class="account-card">
@@ -287,19 +208,14 @@
                         </div>
                     </div>
                 </section>
-
                 <section class="settings-section" id="install-section">
                     <h3>App</h3>
                     <button class="settings-install-btn" id="settings-install-btn">
                         <i class="fa-solid fa-download"></i>
-                        <div>
-                            <strong>Install Tanmay AI</strong>
-                            <small>App ki tarah phone mein lagao</small>
-                        </div>
+                        <div><strong>Install Tanmay AI</strong><small>App ki tarah lagao</small></div>
                     </button>
                     <p class="install-hint" id="install-hint" style="display:none;"></p>
                 </section>
-
                 <section class="settings-section">
                     <h3>Appearance</h3>
                     <div class="settings-row">
@@ -319,32 +235,17 @@
                         </select>
                     </div>
                 </section>
-
                 <section class="settings-section">
                     <h3>Voice</h3>
                     <div class="settings-row">
                         <label><i class="fa-solid fa-volume-high"></i> Voice Replies</label>
-                        <label class="switch">
-                            <input type="checkbox" id="setting-voice-toggle" checked>
-                            <span class="slider"></span>
-                        </label>
+                        <label class="switch"><input type="checkbox" id="setting-voice-toggle" checked><span class="slider"></span></label>
                     </div>
                     <div class="settings-row">
                         <label><i class="fa-solid fa-microphone"></i> Auto Send Voice</label>
-                        <label class="switch">
-                            <input type="checkbox" id="setting-autosend-voice" checked>
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="settings-row">
-                        <label><i class="fa-solid fa-closed-captioning"></i> Show Captions (CC)</label>
-                        <label class="switch">
-                            <input type="checkbox" id="setting-cc-toggle" checked>
-                            <span class="slider"></span>
-                        </label>
+                        <label class="switch"><input type="checkbox" id="setting-autosend-voice" checked><span class="slider"></span></label>
                     </div>
                 </section>
-
                 <section class="settings-section">
                     <h3>Data</h3>
                     <button class="settings-danger-btn" id="settings-clear-history">
@@ -354,30 +255,26 @@
                         <i class="fa-solid fa-brain"></i> Clear Personal Memory
                     </button>
                 </section>
-
                 <section class="settings-section">
                     <h3>About</h3>
                     <div class="about-block">
                         <div class="about-logo">T</div>
                         <div>
                             <strong>Tanmay AI</strong>
-                            <small>Version 6.0</small>
+                            <small>Version 7.0</small>
                             <small>Made by Tanmay Sahu</small>
                         </div>
                     </div>
                 </section>
-
                 <section class="settings-section">
                     <button class="settings-logout-btn" id="settings-logout-btn">
                         <i class="fa-solid fa-right-from-bracket"></i> Sign Out
                     </button>
                 </section>
-
             </div>
         </div>
     </div>
 
-    <script type="module" src="script.js?v=6"></script>
-
+    <script type="module" src="script.js?v=7"></script>
 </body>
 </html>

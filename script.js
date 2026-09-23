@@ -1,7 +1,5 @@
 /* =========================================================
-   TANMAY AI - MAIN SCRIPT
-   Version 6.1
-   Made by Tanmay Sahu
+   TANMAY AI - MAIN SCRIPT v7
    ========================================================= */
 
 /* ============= IMPORTS ============= */
@@ -38,7 +36,6 @@ const googleOAuthUrl =
 
 /* ============= PWA ============= */
 let isRefreshing = false;
-
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("./service-worker.js")
@@ -52,9 +49,7 @@ if ("serviceWorker" in navigator) {
                     const nsw = reg.installing;
                     if (!nsw) return;
                     nsw.addEventListener("statechange", () => {
-                        if (nsw.state === "installed" && navigator.serviceWorker.controller) {
-                            nsw.postMessage("SKIP_WAITING");
-                        }
+                        if (nsw.state === "installed" && navigator.serviceWorker.controller) nsw.postMessage("SKIP_WAITING");
                     });
                 });
             })
@@ -68,7 +63,7 @@ if ("serviceWorker" in navigator) {
     });
 }
 
-/* ============= DOM SHORTCUT ============= */
+/* ============= SHORTCUT ============= */
 const $ = id => document.getElementById(id);
 
 /* ============= DOM ELEMENTS ============= */
@@ -113,7 +108,6 @@ const settingTheme = $("setting-theme");
 const settingLanguage = $("setting-language");
 const settingVoiceToggle = $("setting-voice-toggle");
 const settingAutosendVoice = $("setting-autosend-voice");
-const settingCcToggle = $("setting-cc-toggle");
 const settingsClearHistory = $("settings-clear-history");
 const settingsClearMemory = $("settings-clear-memory");
 const settingsLogoutBtn = $("settings-logout-btn");
@@ -151,21 +145,16 @@ const pendingCaption = $("pending-caption");
 
 const callOverlay = $("call-overlay");
 const callStatus = $("call-status");
-const callSub = $("call-sub");
 const callMicBtn = $("call-mic-btn");
-const callCcBtn = $("call-cc-btn");
 const callEndBtn = $("call-end-btn");
 const callWave = $("call-wave");
-const ccAiLine = $("cc-ai-line");
-const ccUserLine = $("cc-user-line");
-const callCaptions = $("call-captions");
+const callChatLog = $("call-chat-log");
 
-console.log("Tanmay AI v6.1 loaded ✓");
+console.log("Tanmay AI v7 loaded ✓");
 
 /* ============= STATE ============= */
 let isVoiceEnabled = true;
 let autoSendVoice = true;
-let showCc = true;
 let currentLanguage = "auto";
 let recognition = null;
 let currentSpeakingButton = null;
@@ -182,23 +171,22 @@ let studyFormulas = [];
 let currentView = "chat";
 let pendingImage = null;
 
-/* Call mode state */
+/* Call state */
 let callModeActive = false;
 let callRecognition = null;
 let callIsListening = false;
 let callHistoryContext = [];
 let callSpeaking = false;
-let callKeepAliveTimer = null;
 let callManuallyStopped = false;
+let callKeepAliveTimer = null;
+let callInterimBubble = null;
 
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
 
 /* ============= PLATFORM ============= */
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-const isStandalone = () =>
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true;
+const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 
 /* ============= PWA INSTALL ============= */
 window.addEventListener("beforeinstallprompt", e => {
@@ -206,7 +194,6 @@ window.addEventListener("beforeinstallprompt", e => {
     deferredInstallPrompt = e;
     updateInstallUI();
 });
-
 window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
     showToast("Tanmay AI installed! 🎉", "success");
@@ -214,10 +201,7 @@ window.addEventListener("appinstalled", () => {
 });
 
 function updateInstallUI() {
-    if (isStandalone()) {
-        installSection.style.display = "none";
-        return;
-    }
+    if (isStandalone()) { installSection.style.display = "none"; return; }
     installSection.style.display = "block";
 
     if (deferredInstallPrompt) {
@@ -243,13 +227,9 @@ async function triggerInstall() {
         showToast(c.outcome === "accepted" ? "Installing..." : "Cancelled", c.outcome === "accepted" ? "success" : "info");
         deferredInstallPrompt = null;
         updateInstallUI();
-    } else if (isIOS()) {
-        showToast("Safari Share → Add to Home Screen", "info");
-    } else {
-        showToast("Browser menu (⋮) → Install App", "info");
-    }
+    } else if (isIOS()) showToast("Safari Share → Add to Home Screen", "info");
+    else showToast("Browser menu (⋮) → Install App", "info");
 }
-
 settingsInstallBtn.addEventListener("click", triggerInstall);
 
 /* ============= SETTINGS ============= */
@@ -268,21 +248,12 @@ function loadSettings() {
     const voice = localStorage.getItem("tanmay-voice");
     isVoiceEnabled = voice !== "off";
     settingVoiceToggle.checked = isVoiceEnabled;
-    toggleVoiceBtn.innerHTML = isVoiceEnabled
-        ? '<i class="fa-solid fa-volume-high"></i>'
-        : '<i class="fa-solid fa-volume-xmark"></i>';
+    toggleVoiceBtn.innerHTML = isVoiceEnabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
 
     const autoSend = localStorage.getItem("tanmay-autosend-voice");
     autoSendVoice = autoSend !== "off";
     settingAutosendVoice.checked = autoSendVoice;
-
-    const cc = localStorage.getItem("tanmay-cc");
-    showCc = cc !== "off";
-    if (settingCcToggle) settingCcToggle.checked = showCc;
-    if (callCcBtn) callCcBtn.classList.toggle("active", showCc);
-    if (callCaptions) callCaptions.classList.toggle("hidden-cc", !showCc);
 }
-
 loadSettings();
 updateInstallUI();
 
@@ -299,44 +270,23 @@ function applyTheme(theme) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", theme === "light" ? "#f5f5f7" : "#0f0f10");
 }
-
-themeToggleBtn.addEventListener("click", () => {
-    applyTheme(document.body.classList.contains("light-mode") ? "dark" : "light");
-});
-
+themeToggleBtn.addEventListener("click", () => applyTheme(document.body.classList.contains("light-mode") ? "dark" : "light"));
 settingTheme.addEventListener("change", e => applyTheme(e.target.value));
-
 settingLanguage.addEventListener("change", e => {
     currentLanguage = e.target.value;
     localStorage.setItem("tanmay-language", currentLanguage);
     showToast("Language updated", "success");
 });
-
 settingVoiceToggle.addEventListener("change", e => {
     isVoiceEnabled = e.target.checked;
     localStorage.setItem("tanmay-voice", isVoiceEnabled ? "on" : "off");
-    toggleVoiceBtn.innerHTML = isVoiceEnabled
-        ? '<i class="fa-solid fa-volume-high"></i>'
-        : '<i class="fa-solid fa-volume-xmark"></i>';
-    if (!isVoiceEnabled) {
-        window.speechSynthesis.cancel();
-        resetSpeakingButtons();
-    }
+    toggleVoiceBtn.innerHTML = isVoiceEnabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
+    if (!isVoiceEnabled) { window.speechSynthesis.cancel(); resetSpeakingButtons(); }
 });
-
 settingAutosendVoice.addEventListener("change", e => {
     autoSendVoice = e.target.checked;
     localStorage.setItem("tanmay-autosend-voice", autoSendVoice ? "on" : "off");
 });
-
-if (settingCcToggle) {
-    settingCcToggle.addEventListener("change", e => {
-        showCc = e.target.checked;
-        localStorage.setItem("tanmay-cc", showCc ? "on" : "off");
-        if (callCcBtn) callCcBtn.classList.toggle("active", showCc);
-        if (callCaptions) callCaptions.classList.toggle("hidden-cc", !showCc);
-    });
-}
 
 /* ============= TOAST ============= */
 function showToast(message, type) {
@@ -363,12 +313,13 @@ function formatTime(ts) {
 }
 
 function scrollToBottom() {
-    requestAnimationFrame(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    });
-    setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }, 80);
+    requestAnimationFrame(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; });
+    setTimeout(() => { messagesContainer.scrollTop = messagesContainer.scrollHeight; }, 80);
+}
+
+function scrollCallLogToBottom() {
+    requestAnimationFrame(() => { callChatLog.scrollTop = callChatLog.scrollHeight; });
+    setTimeout(() => { callChatLog.scrollTop = callChatLog.scrollHeight; }, 50);
 }
 
 /* ============= LOADER ============= */
@@ -380,9 +331,7 @@ document.body.appendChild(globalLoader);
 function removeLoader() {
     if (globalLoader && document.body.contains(globalLoader)) {
         globalLoader.style.opacity = "0";
-        setTimeout(() => {
-            if (globalLoader.parentNode) globalLoader.parentNode.removeChild(globalLoader);
-        }, 300);
+        setTimeout(() => { if (globalLoader.parentNode) globalLoader.parentNode.removeChild(globalLoader); }, 300);
     }
 }
 
@@ -406,34 +355,22 @@ async function copyToClipboard(text) {
             document.body.removeChild(ta);
         }
         showToast("Copied!", "success");
-    } catch (e) {
-        showToast("Copy failed", "error");
-    }
+    } catch (e) { showToast("Copy failed", "error"); }
 }
 
 async function shareMessage(text) {
     if (navigator.share) {
-        try {
-            await navigator.share({ title: "Tanmay AI", text: text });
-        } catch (e) {
-            if (e.name !== "AbortError") copyToClipboard(text);
-        }
-    } else {
-        copyToClipboard(text);
-    }
+        try { await navigator.share({ title: "Tanmay AI", text: text }); }
+        catch (e) { if (e.name !== "AbortError") copyToClipboard(text); }
+    } else copyToClipboard(text);
 }
 
 async function shareApp() {
     const url = window.location.origin + window.location.pathname;
     if (navigator.share) {
-        try {
-            await navigator.share({ title: "Tanmay AI", text: "Dekh, ye Tanmay AI hai!", url: url });
-        } catch (e) {
-            if (e.name !== "AbortError") await copyToClipboard(url);
-        }
-    } else {
-        await copyToClipboard(url);
-    }
+        try { await navigator.share({ title: "Tanmay AI", text: "Dekh, ye Tanmay AI hai!", url: url }); }
+        catch (e) { if (e.name !== "AbortError") await copyToClipboard(url); }
+    } else await copyToClipboard(url);
 }
 
 /* ============= DROPDOWNS ============= */
@@ -455,19 +392,13 @@ function openMenu(anchorBtn, menuItems, isUserMsg) {
     closeDropdown();
     const dd = document.createElement("div");
     dd.className = "msg-dropdown";
-
     menuItems.forEach(item => {
         const b = document.createElement("button");
         b.className = "msg-dropdown-item" + (item.danger ? " danger" : "");
         b.innerHTML = '<i class="fa-solid ' + item.icon + '"></i> ' + item.label;
-        b.onclick = ev => {
-            ev.stopPropagation();
-            closeDropdown();
-            item.action();
-        };
+        b.onclick = ev => { ev.stopPropagation(); closeDropdown(); item.action(); };
         dd.appendChild(b);
     });
-
     document.body.appendChild(dd);
     const r = anchorBtn.getBoundingClientRect();
     const mw = 180;
@@ -476,10 +407,7 @@ function openMenu(anchorBtn, menuItems, isUserMsg) {
     if (l + mw > window.innerWidth - 10) l = window.innerWidth - mw - 10;
     if (l < 10) l = 10;
     const mh = menuItems.length * 42 + 12;
-    if (t + mh > window.innerHeight - 10) {
-        t = r.top - mh - 6;
-        dd.classList.add("drop-up");
-    }
+    if (t + mh > window.innerHeight - 10) { t = r.top - mh - 6; dd.classList.add("drop-up"); }
     dd.style.left = l + "px";
     dd.style.top = t + "px";
     openDropdown = dd;
@@ -490,7 +418,6 @@ headerMenuBtn.addEventListener("click", e => {
     closeDropdown();
     const dd = document.createElement("div");
     dd.className = "header-dropdown";
-
     const items = [];
     if (!isStandalone()) items.push({ label: "Install App", icon: "fa-download", action: triggerInstall });
     items.push(
@@ -499,19 +426,13 @@ headerMenuBtn.addEventListener("click", e => {
         { label: "Settings", icon: "fa-gear", action: () => { closeSidebar(); openSettings(); } },
         { label: "New Chat", icon: "fa-plus", action: () => { switchView("chat"); startNewChatSession(); } }
     );
-
     items.forEach(item => {
         const b = document.createElement("button");
         b.className = "header-dropdown-item";
         b.innerHTML = '<i class="fa-solid ' + item.icon + '"></i> ' + item.label;
-        b.onclick = ev => {
-            ev.stopPropagation();
-            closeDropdown();
-            item.action();
-        };
+        b.onclick = ev => { ev.stopPropagation(); closeDropdown(); item.action(); };
         dd.appendChild(b);
     });
-
     document.body.appendChild(dd);
     const r = headerMenuBtn.getBoundingClientRect();
     const mw = 210;
@@ -539,9 +460,7 @@ async function loadAllMemories() {
         uSnap.forEach(d => {
             if (d.data() && d.data().memory) userPersonalMemoryCache.push(d.data().memory);
         });
-    } catch (e) {
-        console.error("Memory load error:", e);
-    }
+    } catch (e) { console.error("Memory load error:", e); }
 }
 
 /* ============= AUTH ============= */
@@ -550,12 +469,10 @@ onAuthStateChanged(auth, async user => {
         currentUser = user;
         const displayName = user.displayName || (user.email && user.email.split("@")[0]) || "User";
         const email = user.email || "";
-
         usernameDisplay.innerText = displayName;
         useremailDisplay.innerText = email;
         settingsUsername.innerText = displayName;
         settingsUseremail.innerText = email;
-
         if (user.photoURL) {
             userAvatar.src = user.photoURL;
             userAvatar.style.display = "block";
@@ -569,13 +486,11 @@ onAuthStateChanged(auth, async user => {
             settingsAvatar.style.display = "none";
             settingsDefaultIcon.style.display = "block";
         }
-
         await loadAllMemories();
         loadStudyFromLocal();
         renderNotes();
         renderFormulas();
         await loadAllSidebarTopics(true);
-
         loginContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
         removeLoader();
@@ -589,11 +504,8 @@ onAuthStateChanged(auth, async user => {
 
 googleLoginBtn.addEventListener("click", () => {
     const isWebView = /wv|WebView/i.test(window.navigator.userAgent) || (!window.chrome && /Android|iPhone|iPad/i.test(window.navigator.userAgent));
-    if (isWebView) {
-        window.location.href = googleOAuthUrl;
-    } else {
-        signInWithPopup(auth, provider).catch(e => showToast("Login Error: " + e.message, "error"));
-    }
+    if (isWebView) window.location.href = googleOAuthUrl;
+    else signInWithPopup(auth, provider).catch(e => showToast("Login Error: " + e.message, "error"));
 });
 
 function doLogout() {
@@ -604,10 +516,7 @@ function doLogout() {
         showToast("Logged out", "info");
     });
 }
-
-settingsLogoutBtn.addEventListener("click", () => {
-    if (confirm("Sign out from Tanmay AI?")) doLogout();
-});
+settingsLogoutBtn.addEventListener("click", () => { if (confirm("Sign out from Tanmay AI?")) doLogout(); });
 
 /* ============= SETTINGS PANEL ============= */
 function openSettings() {
@@ -615,46 +524,36 @@ function openSettings() {
     document.body.style.overflow = "hidden";
     updateInstallUI();
 }
-
 function closeSettings() {
     settingsOverlay.classList.add("hidden");
     document.body.style.overflow = "";
 }
-
 openSettingsBtn.addEventListener("click", () => { closeSidebar(); openSettings(); });
 userProfileBtn.addEventListener("click", () => { closeSidebar(); openSettings(); });
 closeSettingsBtn.addEventListener("click", closeSettings);
-settingsOverlay.addEventListener("click", e => {
-    if (e.target === settingsOverlay) closeSettings();
-});
+settingsOverlay.addEventListener("click", e => { if (e.target === settingsOverlay) closeSettings(); });
 
 /* ============= CLEAR DATA ============= */
 settingsClearHistory.addEventListener("click", async () => {
     if (!currentUser) return;
     if (!confirm("Clear ALL chat history?")) return;
-
     try {
         const q = query(collection(db, "chat_messages"));
         const snap = await getDocs(q);
         for (const d of snap.docs) {
-            if (d.data().uid === currentUser.uid) {
-                await deleteDoc(doc(db, "chat_messages", d.id));
-            }
+            if (d.data().uid === currentUser.uid) await deleteDoc(doc(db, "chat_messages", d.id));
         }
         sessionStorage.removeItem(CHAT_SESSION_KEY);
         startNewChatSession();
         historyList.innerHTML = "";
         closeSettings();
         showToast("History cleared", "success");
-    } catch (e) {
-        showToast("Clear failed", "error");
-    }
+    } catch (e) { showToast("Clear failed", "error"); }
 });
 
 settingsClearMemory.addEventListener("click", async () => {
     if (!currentUser) return;
     if (!confirm("Clear your personal memory?")) return;
-
     try {
         const q = query(collection(db, "users_memory/" + currentUser.uid + "/memories"));
         const snap = await getDocs(q);
@@ -663,9 +562,7 @@ settingsClearMemory.addEventListener("click", async () => {
         }
         userPersonalMemoryCache = [];
         showToast("Personal memory cleared", "success");
-    } catch (e) {
-        showToast("Clear failed", "error");
-    }
+    } catch (e) { showToast("Clear failed", "error"); }
 });
 
 /* ============= SIDEBAR ============= */
@@ -673,18 +570,14 @@ function openSidebar() {
     sidebar.classList.remove("collapsed");
     if (window.innerWidth <= 768) sidebarOverlay.classList.add("active");
 }
-
 function closeSidebar() {
     sidebar.classList.add("collapsed");
     sidebarOverlay.classList.remove("active");
 }
-
 sidebarToggleBtn.addEventListener("click", e => {
     e.stopPropagation();
-    if (sidebar.classList.contains("collapsed")) openSidebar();
-    else closeSidebar();
+    if (sidebar.classList.contains("collapsed")) openSidebar(); else closeSidebar();
 });
-
 sidebarOverlay.addEventListener("click", closeSidebar);
 sidebarCloseBtn.addEventListener("click", closeSidebar);
 
@@ -700,9 +593,7 @@ chatSearchInput.addEventListener("input", e => {
 function switchView(view) {
     currentView = view;
     document.querySelectorAll(".sidebar-nav-btn").forEach(b => b.classList.remove("active"));
-    if (view === "chat") navChat.classList.add("active");
-    else navStudy.classList.add("active");
-
+    if (view === "chat") navChat.classList.add("active"); else navStudy.classList.add("active");
     if (view === "chat") {
         messagesContainer.classList.remove("hidden");
         chatFooter.classList.remove("hidden");
@@ -718,7 +609,6 @@ function switchView(view) {
     }
     if (window.innerWidth <= 768) closeSidebar();
 }
-
 navChat.addEventListener("click", () => switchView("chat"));
 navStudy.addEventListener("click", () => switchView("study"));
 
@@ -728,17 +618,12 @@ studyTabs.forEach(tab => {
         const t = tab.dataset.tab;
         studyTabs.forEach(x => x.classList.remove("active"));
         tab.classList.add("active");
-        Object.keys(studyPanels).forEach(k => {
-            studyPanels[k].classList.toggle("active", k === t);
-        });
+        Object.keys(studyPanels).forEach(k => studyPanels[k].classList.toggle("active", k === t));
     });
 });
 
 /* ============= STUDY DATA ============= */
-function studyKey() {
-    return currentUser ? "study_" + currentUser.uid : "study_guest";
-}
-
+function studyKey() { return currentUser ? "study_" + currentUser.uid : "study_guest"; }
 function loadStudyFromLocal() {
     try {
         const raw = localStorage.getItem(studyKey());
@@ -746,25 +631,12 @@ function loadStudyFromLocal() {
             const data = JSON.parse(raw);
             studyNotes = Array.isArray(data.notes) ? data.notes : [];
             studyFormulas = Array.isArray(data.formulas) ? data.formulas : [];
-        } else {
-            studyNotes = [];
-            studyFormulas = [];
-        }
-    } catch (e) {
-        studyNotes = [];
-        studyFormulas = [];
-    }
+        } else { studyNotes = []; studyFormulas = []; }
+    } catch (e) { studyNotes = []; studyFormulas = []; }
 }
-
 function saveStudyToLocal() {
-    try {
-        localStorage.setItem(studyKey(), JSON.stringify({
-            notes: studyNotes,
-            formulas: studyFormulas
-        }));
-    } catch (e) {}
+    try { localStorage.setItem(studyKey(), JSON.stringify({ notes: studyNotes, formulas: studyFormulas })); } catch (e) {}
 }
-
 function renderNotes() {
     if (!notesList) return;
     notesList.innerHTML = "";
@@ -788,7 +660,6 @@ function renderNotes() {
         notesList.appendChild(card);
     });
 }
-
 function renderFormulas() {
     if (!formulaList) return;
     formulaList.innerHTML = "";
@@ -812,14 +683,8 @@ function renderFormulas() {
         formulaList.appendChild(card);
     });
 }
-
 function escapeHtml(str) {
-    return String(str || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
 saveNoteBtn.addEventListener("click", () => {
@@ -851,35 +716,23 @@ startQuizBtn.addEventListener("click", async () => {
     const topic = quizTopicInput.value.trim();
     if (!topic) return showToast("Topic likho pehle", "error");
     const count = quizCountSelect.value;
-
     quizDisplay.classList.remove("hidden");
-    quizDisplay.innerHTML =
-        '<div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div>' +
-        '<div style="text-align:center;color:var(--text-muted);font-size:13px;margin-top:8px;">Quiz ban raha hai...</div>';
-
+    quizDisplay.innerHTML = '<div class="typing-dots" style="justify-content:center;"><span></span><span></span><span></span></div><div style="text-align:center;color:var(--text-muted);font-size:13px;margin-top:8px;">Quiz ban raha hai...</div>';
     try {
         const res = await fetch(API_BASE + "/api/quiz", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                topic: topic,
-                count: count,
-                userName: currentUser.displayName || "User",
-                userEmail: currentUser.email || ""
-            })
+            body: JSON.stringify({ topic, count, userName: currentUser.displayName || "User", userEmail: currentUser.email || "" })
         });
         const data = await res.json();
         if (res.ok && data.reply) renderQuiz(data.reply);
         else quizDisplay.innerHTML = '<div class="study-empty">Quiz nahi ban paya.</div>';
-    } catch (e) {
-        quizDisplay.innerHTML = '<div class="study-empty">Network problem.</div>';
-    }
+    } catch (e) { quizDisplay.innerHTML = '<div class="study-empty">Network problem.</div>'; }
 });
 
 function renderQuiz(rawText) {
     const blocks = rawText.split(/\n(?=Q\d+[\.\)])/i);
     const quizData = [];
-
     blocks.forEach(block => {
         const lines = block.split("\n").map(l => l.trim()).filter(Boolean);
         if (!lines.length) return;
@@ -888,59 +741,40 @@ function renderQuiz(rawText) {
         const question = qMatch[1].trim();
         const options = [];
         let answer = null;
-
         lines.slice(1).forEach(l => {
             const o = l.match(/^([A-D])[\.\)]\s*(.+)/i);
             if (o) options.push({ letter: o[1].toUpperCase(), text: o[2].trim() });
             const a = l.match(/^Answer\s*[:\-]\s*([A-D])/i);
             if (a) answer = a[1].toUpperCase();
         });
-
-        if (question && options.length >= 2 && answer) {
-            quizData.push({ question: question, options: options, answer: answer });
-        }
+        if (question && options.length >= 2 && answer) quizData.push({ question, options, answer });
     });
-
-    if (!quizData.length) {
-        quizDisplay.innerHTML = '<div class="study-empty">Quiz format galat aaya.</div>';
-        return;
-    }
-
+    if (!quizData.length) { quizDisplay.innerHTML = '<div class="study-empty">Quiz format galat aaya.</div>'; return; }
     quizDisplay.innerHTML = "";
-    let score = 0;
-    let answered = 0;
-
+    let score = 0, answered = 0;
     quizData.forEach((q, idx) => {
         const qDiv = document.createElement("div");
         qDiv.className = "quiz-question";
-
         const qt = document.createElement("div");
         qt.className = "quiz-q-text";
         qt.innerText = "Q" + (idx + 1) + ". " + q.question;
         qDiv.appendChild(qt);
-
         const ow = document.createElement("div");
         ow.className = "quiz-options";
-
         q.options.forEach(opt => {
             const b = document.createElement("div");
             b.className = "quiz-option";
             b.innerText = opt.letter + ") " + opt.text;
-
             b.onclick = () => {
                 if (b.classList.contains("disabled")) return;
                 ow.querySelectorAll(".quiz-option").forEach(x => x.classList.add("disabled"));
-
-                if (opt.letter === q.answer) {
-                    b.classList.add("correct");
-                    score++;
-                } else {
+                if (opt.letter === q.answer) { b.classList.add("correct"); score++; }
+                else {
                     b.classList.add("wrong");
                     ow.querySelectorAll(".quiz-option").forEach(x => {
                         if (x.innerText.startsWith(q.answer + ")")) x.classList.add("correct");
                     });
                 }
-
                 answered++;
                 if (answered === quizData.length) {
                     const sc = document.createElement("div");
@@ -951,68 +785,45 @@ function renderQuiz(rawText) {
             };
             ow.appendChild(b);
         });
-
         qDiv.appendChild(ow);
         quizDisplay.appendChild(qDiv);
     });
 }
 
-/* ============= PLUS BUTTON + ATTACH MENU ============= */
+/* ============= PLUS BUTTON ============= */
 function openAttachMenu() {
     closeDropdown();
-
     const dd = document.createElement("div");
     dd.className = "attach-menu";
-
     const items = [
         { label: "Gallery", icon: "fa-image", action: () => imageInput.click() },
         { label: "Camera", icon: "fa-camera", action: () => cameraInput.click() },
         { label: "Files", icon: "fa-paperclip", action: () => fileInput.click() },
         { label: "Paste Image", icon: "fa-paste", action: pasteImageFromClipboard }
     ];
-
     items.forEach(item => {
         const b = document.createElement("button");
         b.className = "attach-menu-item";
-        b.innerHTML =
-            '<div class="attach-icon-wrap"><i class="fa-solid ' + item.icon + '"></i></div>' +
-            '<span>' + item.label + '</span>';
-        b.onclick = ev => {
-            ev.stopPropagation();
-            closeDropdown();
-            item.action();
-        };
+        b.innerHTML = '<div class="attach-icon-wrap"><i class="fa-solid ' + item.icon + '"></i></div><span>' + item.label + '</span>';
+        b.onclick = ev => { ev.stopPropagation(); closeDropdown(); item.action(); };
         dd.appendChild(b);
     });
-
     document.body.appendChild(dd);
-
     const r = plusBtn.getBoundingClientRect();
-    const mw = 210;
-    const mh = items.length * 54 + 20;
-
-    let l = r.left;
-    let t = r.top - mh - 8;
-
+    const mw = 210, mh = items.length * 54 + 20;
+    let l = r.left, t = r.top - mh - 8;
     if (t < 10) t = r.bottom + 8;
     if (l + mw > window.innerWidth - 10) l = window.innerWidth - mw - 10;
     if (l < 10) l = 10;
-
     dd.style.left = l + "px";
     dd.style.top = t + "px";
     openDropdown = dd;
 }
-
-plusBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    openAttachMenu();
-});
+plusBtn.addEventListener("click", e => { e.stopPropagation(); openAttachMenu(); });
 
 async function pasteImageFromClipboard() {
     try {
-        if (!navigator.clipboard || !navigator.clipboard.read) {
-            return showToast("Clipboard support nahi hai", "error");
-        }
+        if (!navigator.clipboard || !navigator.clipboard.read) return showToast("Clipboard support nahi hai", "error");
         const items = await navigator.clipboard.read();
         for (const item of items) {
             for (const type of item.types) {
@@ -1025,19 +836,13 @@ async function pasteImageFromClipboard() {
             }
         }
         showToast("Clipboard mein koi image nahi mili", "info");
-    } catch (e) {
-        console.log("Paste error:", e);
-        showToast("Paste permission nahi mili", "error");
-    }
+    } catch (e) { showToast("Paste permission nahi mili", "error"); }
 }
 
-/* ============= IMAGE HANDLING ============= */
+/* ============= IMAGE ============= */
 function handleImageFile(file) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-        return showToast("Sirf image bhej sakte ho", "error");
-    }
-
+    if (!file.type.startsWith("image/")) return showToast("Sirf image bhej sakte ho", "error");
     const reader = new FileReader();
     reader.onload = ev => {
         pendingImage = { dataUrl: ev.target.result, mime: file.type };
@@ -1048,31 +853,13 @@ function handleImageFile(file) {
     };
     reader.readAsDataURL(file);
 }
-
-imageInput.addEventListener("change", e => {
-    const f = e.target.files && e.target.files[0];
-    handleImageFile(f);
-    e.target.value = "";
-});
-
-cameraInput.addEventListener("change", e => {
-    const f = e.target.files && e.target.files[0];
-    handleImageFile(f);
-    e.target.value = "";
-});
-
+imageInput.addEventListener("change", e => { const f = e.target.files && e.target.files[0]; handleImageFile(f); e.target.value = ""; });
+cameraInput.addEventListener("change", e => { const f = e.target.files && e.target.files[0]; handleImageFile(f); e.target.value = ""; });
 fileInput.addEventListener("change", e => {
     const f = e.target.files && e.target.files[0];
-    if (f) {
-        if (!f.type.startsWith("image/")) {
-            showToast("Abhi sirf image support hai", "info");
-        } else {
-            handleImageFile(f);
-        }
-    }
+    if (f) { if (!f.type.startsWith("image/")) showToast("Abhi sirf image support hai", "info"); else handleImageFile(f); }
     e.target.value = "";
 });
-
 pendingRemove.addEventListener("click", () => {
     pendingImage = null;
     pendingImageBar.classList.add("hidden");
@@ -1092,30 +879,24 @@ async function sendMessage() {
         await sendImageMessage(img.dataUrl, img.mime, caption);
         return;
     }
-
     const text = userInput.value.trim();
     if (!text) return;
     if (!currentUser) return showToast("Pehle login karo", "error");
     if (currentView !== "chat") switchView("chat");
-
     if (!currentChatId) {
         currentChatId = "chat_" + Date.now();
         sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
     }
-
     const wb = messagesContainer.querySelector(".welcome-block");
     if (wb) wb.remove();
-
     appendUserMessage(text);
     userInput.value = "";
     chatHistoryContext.push({ role: "user", content: text });
 
     const userEmail = currentUser.email || "No Email";
     const userName = currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
-
     const memRx = /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|suno:|sun:)\s*(.*)/i;
     const match = text.match(memRx);
-
     if (match && match[2]) {
         const learned = match[2].trim();
         await savePersonalMemory(learned);
@@ -1127,7 +908,6 @@ async function sendMessage() {
     }
 
     const trimmed = chatHistoryContext.slice(-8);
-
     const lr = document.createElement("div");
     lr.classList.add("message-row", "ai-row");
     const lb = document.createElement("div");
@@ -1150,23 +930,18 @@ async function sendMessage() {
                 preferredLanguage: currentLanguage
             })
         });
-
         const data = await res.json();
         if (messagesContainer.contains(lr)) messagesContainer.removeChild(lr);
-
         if (res.ok && data.reply) {
             const aiReply = data.reply;
             chatHistoryContext.push({ role: "assistant", content: aiReply });
             appendAIMessage(aiReply, true, text);
-
             if (isCurrentUserAdmin() && data.showModel && data.provider && data.model) {
                 const mi = document.createElement("div");
                 mi.className = "admin-model-info";
                 mi.innerText = "🤖 " + data.provider + " • " + data.model;
                 messagesContainer.appendChild(mi);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
-
             await saveMessageToFirebase(currentChatId, text, aiReply);
         } else {
             appendAIMessage((data && data.reply) || "Abhi response nahi aaya.", true, text);
@@ -1177,28 +952,20 @@ async function sendMessage() {
         showToast("Connection failed", "error");
     }
 }
-
 sendBtn.addEventListener("click", sendMessage);
-userInput.addEventListener("keypress", e => {
-    if (e.key === "Enter") sendMessage();
-});
-pendingCaption.addEventListener("keypress", e => {
-    if (e.key === "Enter") sendMessage();
-});
+userInput.addEventListener("keypress", e => { if (e.key === "Enter") sendMessage(); });
+pendingCaption.addEventListener("keypress", e => { if (e.key === "Enter") sendMessage(); });
 
 /* ============= SEND IMAGE ============= */
 async function sendImageMessage(dataUrl, mime, caption) {
     if (!currentUser) return;
     if (currentView !== "chat") switchView("chat");
-
     if (!currentChatId) {
         currentChatId = "chat_" + Date.now();
         sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
     }
-
     const wb = messagesContainer.querySelector(".welcome-block");
     if (wb) wb.remove();
-
     appendUserImageMessage(dataUrl, caption);
     const userText = caption || "[Image]";
     chatHistoryContext.push({ role: "user", content: userText });
@@ -1225,10 +992,8 @@ async function sendImageMessage(dataUrl, mime, caption) {
                 personalMemory: userPersonalMemoryCache
             })
         });
-
         const data = await res.json();
         if (messagesContainer.contains(lr)) messagesContainer.removeChild(lr);
-
         if (res.ok && data.reply) {
             chatHistoryContext.push({ role: "assistant", content: data.reply });
             appendAIMessage(data.reply, true, userText);
@@ -1282,42 +1047,89 @@ function openImageLightbox(src) {
 }
 
 /* =========================================================
-   CALL MODE — AUTO LISTEN + BARGE-IN + DETAILED ANSWERS
+   CALL MODE — FULL TRANSCRIPT + BARGE-IN + DETAILED
    ========================================================= */
 
-function updateCc(aiText, userText, isInterim) {
-    if (!showCc) return;
-    if (aiText !== undefined) {
-        ccAiLine.innerText = aiText;
-        ccAiLine.classList.toggle("show", !!aiText);
+function appendCallMsg(speaker, text, isInterim) {
+    // speaker: "user" | "ai"
+    if (!text) return null;
+
+    // If interim user bubble exists, update it
+    if (speaker === "user" && isInterim && callInterimBubble) {
+        callInterimBubble.querySelector(".call-msg-bubble").innerText = text;
+        scrollCallLogToBottom();
+        return callInterimBubble;
     }
-    if (userText !== undefined) {
-        ccUserLine.innerText = userText;
-        ccUserLine.classList.toggle("show", !!userText);
-        ccUserLine.classList.toggle("interim", !!isInterim);
+
+    // If we have an interim bubble and now final — replace its content
+    if (speaker === "user" && !isInterim && callInterimBubble) {
+        const bubble = callInterimBubble.querySelector(".call-msg-bubble");
+        bubble.innerText = text;
+        bubble.classList.remove("interim");
+        // Add time
+        const timeEl = document.createElement("div");
+        timeEl.className = "call-msg-time";
+        timeEl.innerText = formatTime(Date.now());
+        callInterimBubble.appendChild(timeEl);
+        const oldInterim = callInterimBubble;
+        callInterimBubble = null;
+        scrollCallLogToBottom();
+        return oldInterim;
     }
+
+    // Clear empty hint if exists
+    const emptyHint = callChatLog.querySelector(".call-empty-hint");
+    if (emptyHint) emptyHint.remove();
+
+    const row = document.createElement("div");
+    row.classList.add("call-msg-row", speaker);
+
+    const who = document.createElement("div");
+    who.className = "call-msg-who";
+    who.innerText = speaker === "user" ? "You" : "Tanmay AI";
+
+    const bubble = document.createElement("div");
+    bubble.className = "call-msg-bubble";
+    bubble.innerText = text;
+
+    row.appendChild(who);
+    row.appendChild(bubble);
+
+    if (!isInterim) {
+        const timeEl = document.createElement("div");
+        timeEl.className = "call-msg-time";
+        timeEl.innerText = formatTime(Date.now());
+        row.appendChild(timeEl);
+    } else {
+        bubble.classList.add("interim");
+    }
+
+    callChatLog.appendChild(row);
+    scrollCallLogToBottom();
+
+    if (speaker === "user" && isInterim) {
+        callInterimBubble = row;
+    }
+
+    return row;
 }
 
-function clearCc() {
-    ccAiLine.innerText = "";
-    ccUserLine.innerText = "";
-    ccAiLine.classList.remove("show");
-    ccUserLine.classList.remove("show");
-    ccUserLine.classList.remove("interim");
+function clearCallChat() {
+    callChatLog.innerHTML = "";
+    callInterimBubble = null;
+    const hint = document.createElement("div");
+    hint.className = "call-empty-hint";
+    hint.innerText = "Boliye — main sun raha hoon...";
+    callChatLog.appendChild(hint);
 }
 
-/* Keep-alive: agar recognition band ho jaaye, turant restart */
 function startCallKeepAlive() {
     stopCallKeepAlive();
     callKeepAliveTimer = setInterval(() => {
         if (!callModeActive) return;
         if (callManuallyStopped) return;
         if (!callIsListening) {
-            try {
-                if (callRecognition) callRecognition.start();
-            } catch (e) {
-                // already started ya transition — ignore
-            }
+            try { if (callRecognition) callRecognition.start(); } catch (e) {}
         }
     }, 400);
 }
@@ -1331,7 +1143,6 @@ function stopCallKeepAlive() {
 
 function startCallMode() {
     if (!currentUser) return showToast("Pehle login karo", "error");
-
     if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
         return showToast("Aapke browser mein mic support nahi hai", "error");
     }
@@ -1342,28 +1153,26 @@ function startCallMode() {
     callHistoryContext = [];
     callOverlay.classList.remove("hidden");
     callStatus.innerText = "Connecting...";
-    callSub.innerText = "Voice Call Mode";
     callWave.classList.add("idle");
     callMicBtn.classList.add("active");
     callIsListening = false;
-    clearCc();
 
-    // Start recognition immediately
+    clearCallChat();
+
     setTimeout(() => {
         if (!callModeActive) return;
         startCallListening();
         startCallKeepAlive();
     }, 200);
 
-    // Greeting after mic is ready
     setTimeout(() => {
         if (!callModeActive) return;
         const greeting = "Namaste! Main Tanmay AI hoon. Batao, kya jaanna hai?";
-        updateCc(greeting, "", false);
+        appendCallMsg("ai", greeting);
+        callHistoryContext.push({ role: "assistant", content: greeting });
         speakCallReply(greeting);
     }, 900);
 }
-
 callBtn.addEventListener("click", startCallMode);
 
 function endCallMode() {
@@ -1377,26 +1186,9 @@ function endCallMode() {
     callOverlay.classList.add("hidden");
     callWave.classList.add("idle");
     callMicBtn.classList.remove("active");
-    clearCc();
+    callInterimBubble = null;
 }
-
 callEndBtn.addEventListener("click", endCallMode);
-
-callCcBtn.addEventListener("click", () => {
-    showCc = !showCc;
-    localStorage.setItem("tanmay-cc", showCc ? "on" : "off");
-    if (settingCcToggle) settingCcToggle.checked = showCc;
-    callCcBtn.classList.toggle("active", showCc);
-    callCaptions.classList.toggle("hidden-cc", !showCc);
-    if (!showCc) {
-        ccAiLine.classList.remove("show");
-        ccUserLine.classList.remove("show");
-    } else {
-        if (ccAiLine.innerText) ccAiLine.classList.add("show");
-        if (ccUserLine.innerText) ccUserLine.classList.add("show");
-    }
-    showToast(showCc ? "Captions ON" : "Captions OFF", "info");
-});
 
 /* Setup call recognition */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
@@ -1417,7 +1209,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     };
 
     callRecognition.onresult = (ev) => {
-        // STRONG BARGE-IN: koi bhi awaaz aaye, AI turant ruk
+        // STRONG BARGE-IN: koi bhi awaaz aaye → AI turant ruk
         if (window.speechSynthesis.speaking || callSpeaking) {
             try { window.speechSynthesis.cancel(); } catch (e) {}
             callSpeaking = false;
@@ -1430,19 +1222,17 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 
         for (let i = ev.resultIndex; i < ev.results.length; i++) {
             const transcript = ev.results[i][0].transcript;
-            if (ev.results[i].isFinal) {
-                finalText += transcript;
-            } else {
-                interim += transcript;
-            }
+            if (ev.results[i].isFinal) finalText += transcript;
+            else interim += transcript;
         }
 
         const liveText = (finalText || interim).trim();
-        if (liveText) {
-            updateCc(undefined, liveText, !finalText);
+        if (liveText && !finalText) {
+            appendCallMsg("user", liveText, true);
         }
 
         if (finalText && finalText.trim()) {
+            appendCallMsg("user", finalText.trim(), false);
             handleCallUserSpeech(finalText.trim());
         }
     };
@@ -1450,8 +1240,6 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     callRecognition.onend = () => {
         callIsListening = false;
         callMicBtn.classList.remove("active");
-
-        // Auto restart (very quickly)
         if (callModeActive && !callManuallyStopped) {
             setTimeout(() => {
                 if (callModeActive && !callIsListening && !callManuallyStopped) {
@@ -1464,8 +1252,6 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     callRecognition.onerror = (ev) => {
         callIsListening = false;
         callMicBtn.classList.remove("active");
-        console.log("Call rec error:", ev.error);
-
         if (callModeActive && !callManuallyStopped && ev.error !== "aborted") {
             setTimeout(() => {
                 if (callModeActive && !callIsListening && !callManuallyStopped) {
@@ -1479,23 +1265,13 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 function startCallListening() {
     if (!callModeActive) return;
     if (callIsListening) return;
-    if (!callRecognition) {
-        callStatus.innerText = "Mic support nahi";
-        return;
-    }
-
-    try {
-        callRecognition.start();
-    } catch (e) {
-        // already started — fine
-    }
+    if (!callRecognition) { callStatus.innerText = "Mic support nahi"; return; }
+    try { callRecognition.start(); } catch (e) {}
 }
 
 callMicBtn.addEventListener("click", () => {
     if (!callModeActive) return;
-
     if (callManuallyStopped) {
-        // user wants to resume
         callManuallyStopped = false;
         callMicBtn.classList.add("active");
         startCallListening();
@@ -1503,8 +1279,6 @@ callMicBtn.addEventListener("click", () => {
         callStatus.innerText = "Listening...";
         return;
     }
-
-    // Stop temporarily
     callManuallyStopped = true;
     try { callRecognition.stop(); } catch (e) {}
     callIsListening = false;
@@ -1524,13 +1298,14 @@ async function handleCallUserSpeech(userText) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 messages: [
-                    { role: "user", content: "IMPORTANT: Answer in DETAIL. At least 3-5 sentences. Explain properly. User is on voice call, so be conversational but thorough." },
-                    ...callHistoryContext.slice(-6)
+                    { role: "user", content: "IMPORTANT: User voice call pe hai. DETAIL se jawab do. Kam se kam 3-5 sentences. Properly explain karo. Hinglish mein. Point-wise mat likho, natural baat karo jaise dost baat karta hai." },
+                    ...callHistoryContext.slice(-8)
                 ],
                 userName: currentUser.displayName || "User",
                 userEmail: currentUser.email || "",
                 globalRules: globalRulesCache,
-                personalMemory: userPersonalMemoryCache
+                personalMemory: userPersonalMemoryCache,
+                preferredLanguage: currentLanguage
             })
         });
 
@@ -1538,19 +1313,19 @@ async function handleCallUserSpeech(userText) {
 
         if (res.ok && data.reply) {
             callHistoryContext.push({ role: "assistant", content: data.reply });
-            updateCc(data.reply, undefined, false);
+            appendCallMsg("ai", data.reply);
             speakCallReply(data.reply);
         } else {
             callStatus.innerText = "No response";
             const fallback = "Sorry, main samajh nahi paaya. Dobara bolo.";
-            updateCc(fallback, undefined, false);
+            appendCallMsg("ai", fallback);
+            callHistoryContext.push({ role: "assistant", content: fallback });
             speakCallReply(fallback);
         }
     } catch (e) {
-        console.log("Call api error:", e);
         callStatus.innerText = "Network error";
         const fallback = "Network problem hai. Thodi der baad try karo.";
-        updateCc(fallback, undefined, false);
+        appendCallMsg("ai", fallback);
         speakCallReply(fallback);
     }
 }
@@ -1568,10 +1343,9 @@ function speakCallReply(text) {
         u.volume = 1.0;
 
         const voices = window.speechSynthesis.getVoices();
-        const pref =
-            voices.find(v => v.lang.startsWith("en-IN")) ||
-            voices.find(v => v.lang.startsWith("en-US")) ||
-            voices.find(v => v.lang.startsWith("en"));
+        const pref = voices.find(v => v.lang.startsWith("en-IN")) ||
+                     voices.find(v => v.lang.startsWith("en-US")) ||
+                     voices.find(v => v.lang.startsWith("en"));
         if (pref) u.voice = pref;
 
         callSpeaking = true;
@@ -1583,10 +1357,7 @@ function speakCallReply(text) {
             callWave.classList.add("idle");
             if (callModeActive) {
                 callStatus.innerText = "Listening...";
-                // Ensure mic is on
-                if (!callIsListening && !callManuallyStopped) {
-                    startCallListening();
-                }
+                if (!callIsListening && !callManuallyStopped) startCallListening();
             }
         };
 
@@ -1595,9 +1366,7 @@ function speakCallReply(text) {
             callWave.classList.add("idle");
             if (callModeActive) {
                 callStatus.innerText = "Listening...";
-                if (!callIsListening && !callManuallyStopped) {
-                    startCallListening();
-                }
+                if (!callIsListening && !callManuallyStopped) startCallListening();
             }
         };
 
@@ -1610,14 +1379,10 @@ function speakCallReply(text) {
             doSpeak();
         };
         setTimeout(doSpeak, 300);
-    } else {
-        doSpeak();
-    }
+    } else doSpeak();
 }
 
-if ("speechSynthesis" in window) {
-    window.speechSynthesis.getVoices();
-}
+if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
 
 /* ============= CHIPS ============= */
 const CHIP_POOL = [
@@ -1631,14 +1396,8 @@ const CHIP_POOL = [
 ];
 
 function showWelcomeScreen() {
-    const displayName = currentUser
-        ? (currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User")
-        : "User";
-
-    const sub = isCurrentUserAdmin()
-        ? "Welcome back, " + displayName
-        : "Hello " + displayName + "! Kuchh bhi poochho.";
-
+    const displayName = currentUser ? (currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User") : "User";
+    const sub = isCurrentUserAdmin() ? "Welcome back, " + displayName : "Hello " + displayName + "! Kuchh bhi poochho.";
     messagesContainer.innerHTML =
         '<div class="welcome-block">' +
             '<div class="welcome-logo">T</div>' +
@@ -1646,24 +1405,18 @@ function showWelcomeScreen() {
             '<p class="welcome-sub">' + sub + '</p>' +
             '<div class="suggestion-chips" id="suggestion-chips"></div>' +
         '</div>';
-
     const shuffled = [...CHIP_POOL].sort(() => Math.random() - 0.5);
     const chosen = shuffled.slice(0, 4);
     const cc = document.getElementById("suggestion-chips");
-
     chosen.forEach(text => {
         const b = document.createElement("button");
         b.className = "chip";
         b.innerText = text;
-        b.addEventListener("click", () => {
-            userInput.value = text;
-            sendMessage();
-        });
+        b.addEventListener("click", () => { userInput.value = text; sendMessage(); });
         cc.appendChild(b);
     });
 }
 
-/* ============= NEW CHAT ============= */
 function startNewChatSession() {
     currentChatId = "chat_" + Date.now();
     sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
@@ -1671,15 +1424,10 @@ function startNewChatSession() {
     showWelcomeScreen();
     window.speechSynthesis.cancel();
     resetSpeakingButtons();
-
     pendingImage = null;
     if (pendingImageBar) pendingImageBar.classList.add("hidden");
-
-    document.querySelectorAll(".history-item-wrapper").forEach(el => {
-        el.classList.remove("active-chat-topic");
-    });
+    document.querySelectorAll(".history-item-wrapper").forEach(el => el.classList.remove("active-chat-topic"));
 }
-
 newChatBtn.addEventListener("click", () => {
     switchView("chat");
     startNewChatSession();
@@ -1687,66 +1435,46 @@ newChatBtn.addEventListener("click", () => {
     userInput.focus();
 });
 
-/* ============= VOICE INPUT (Normal chat) ============= */
+/* ============= VOICE (normal chat) ============= */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SR();
     recognition.continuous = false;
     recognition.lang = "en-US";
-    recognition.onstart = () => {
-        micBtn.classList.add("listening");
-        userInput.placeholder = "Listening...";
-    };
-    recognition.onend = () => {
-        micBtn.classList.remove("listening");
-        userInput.placeholder = "Ask Tanmay AI...";
-    };
+    recognition.onstart = () => { micBtn.classList.add("listening"); userInput.placeholder = "Listening..."; };
+    recognition.onend = () => { micBtn.classList.remove("listening"); userInput.placeholder = "Ask Tanmay AI..."; };
     recognition.onresult = ev => {
         userInput.value = ev.results[0][0].transcript;
         if (autoSendVoice) sendMessage();
     };
 }
-
 micBtn.addEventListener("click", () => {
-    if (recognition) {
-        try { recognition.start(); } catch (e) {}
-    } else {
-        showToast("Mic not supported", "error");
-    }
+    if (recognition) { try { recognition.start(); } catch (e) {} }
+    else showToast("Mic not supported", "error");
 });
 
-/* ============= VOICE OUTPUT (Individual) ============= */
 toggleVoiceBtn.addEventListener("click", () => {
     isVoiceEnabled = !isVoiceEnabled;
-    toggleVoiceBtn.innerHTML = isVoiceEnabled
-        ? '<i class="fa-solid fa-volume-high"></i>'
-        : '<i class="fa-solid fa-volume-xmark"></i>';
+    toggleVoiceBtn.innerHTML = isVoiceEnabled ? '<i class="fa-solid fa-volume-high"></i>' : '<i class="fa-solid fa-volume-xmark"></i>';
     settingVoiceToggle.checked = isVoiceEnabled;
     localStorage.setItem("tanmay-voice", isVoiceEnabled ? "on" : "off");
-    if (!isVoiceEnabled) {
-        window.speechSynthesis.cancel();
-        resetSpeakingButtons();
-    }
+    if (!isVoiceEnabled) { window.speechSynthesis.cancel(); resetSpeakingButtons(); }
     showToast(isVoiceEnabled ? "Voice ON" : "Voice OFF", "info");
 });
 
 window.speakIndividualMessage = function (buttonElement) {
     const row = buttonElement.closest(".message-row");
     const text = row.querySelector(".message-text").innerText;
-
     if (currentSpeakingButton === buttonElement && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
         resetSpeakingButtons();
         return;
     }
-
     window.speechSynthesis.cancel();
     resetSpeakingButtons();
-
     buttonElement.innerHTML = '<i class="fa-solid fa-stop"></i>';
     buttonElement.classList.add("speaking-now");
     currentSpeakingButton = buttonElement;
-
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "en-US";
     u.onend = resetSpeakingButtons;
@@ -1765,60 +1493,42 @@ function resetSpeakingButtons() {
 /* ============= MESSAGE BUILDER ============= */
 function buildMessageRow(text, isUser, timestamp) {
     if (!timestamp) timestamp = Date.now();
-
     const row = document.createElement("div");
     row.classList.add("message-row", isUser ? "user-row" : "ai-row");
-
     const bubble = document.createElement("div");
     bubble.classList.add("message", isUser ? "user-message" : "ai-message");
-
     const tn = document.createElement("div");
     tn.classList.add("message-text");
     tn.innerText = text;
-
     const tm = document.createElement("div");
     tm.classList.add("msg-time");
     tm.innerText = formatTime(timestamp);
-
     bubble.appendChild(tn);
     bubble.appendChild(tm);
     row.appendChild(bubble);
 
     const actions = document.createElement("div");
     actions.classList.add("msg-actions", isUser ? "user-actions" : "ai-actions");
-
     if (!isUser) {
         const sb = document.createElement("button");
         sb.className = "msg-action-btn speak-btn";
         sb.title = "Listen";
         sb.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
-        sb.onclick = e => {
-            e.stopPropagation();
-            speakIndividualMessage(sb);
-        };
+        sb.onclick = e => { e.stopPropagation(); speakIndividualMessage(sb); };
         actions.appendChild(sb);
     }
-
     const cb = document.createElement("button");
     cb.className = "msg-action-btn";
     cb.title = "Copy";
     cb.innerHTML = '<i class="fa-solid fa-copy"></i>';
-    cb.onclick = e => {
-        e.stopPropagation();
-        copyToClipboard(text);
-    };
+    cb.onclick = e => { e.stopPropagation(); copyToClipboard(text); };
     actions.appendChild(cb);
-
     const mb = document.createElement("button");
     mb.className = "msg-action-btn msg-menu-btn";
     mb.title = "More";
     mb.innerHTML = '<i class="fa-solid fa-ellipsis-vertical"></i>';
-    mb.onclick = e => {
-        e.stopPropagation();
-        openMessageMenu(mb, text, isUser);
-    };
+    mb.onclick = e => { e.stopPropagation(); openMessageMenu(mb, text, isUser); };
     actions.appendChild(mb);
-
     row.appendChild(actions);
 
     bubble.onclick = e => {
@@ -1827,7 +1537,6 @@ function buildMessageRow(text, isUser, timestamp) {
         if (window.getSelection().toString()) return;
         row.classList.toggle("show-actions");
     };
-
     return row;
 }
 
@@ -1836,7 +1545,6 @@ function openMessageMenu(anchorBtn, text, isUser) {
         { label: "Copy", icon: "fa-copy", action: () => copyToClipboard(text) },
         { label: "Share", icon: "fa-share", action: () => shareMessage(text) }
     ];
-
     if (!isUser) {
         items.push({
             label: "Read Aloud",
@@ -1850,7 +1558,6 @@ function openMessageMenu(anchorBtn, text, isUser) {
             }
         });
     }
-
     openMenu(anchorBtn, items, isUser);
 }
 
@@ -1865,7 +1572,6 @@ function appendAIMessage(text, shouldSpeak, qText, timestamp) {
     const row = buildMessageRow(text, false, timestamp);
     messagesContainer.appendChild(row);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
     if (isVoiceEnabled && shouldSpeak && !isInitialLoadRunning) {
         const sb = row.querySelector(".speak-btn");
         if (sb) window.speakIndividualMessage(sb);
@@ -1873,13 +1579,10 @@ function appendAIMessage(text, shouldSpeak, qText, timestamp) {
     return row;
 }
 
-/* ============= PERSONAL MEMORY ============= */
+/* ============= MEMORY ============= */
 async function savePersonalMemory(content) {
     if (!currentUser) return;
-    await addDoc(
-        collection(db, "users_memory/" + currentUser.uid + "/memories"),
-        { memory: content, timestamp: Date.now() }
-    );
+    await addDoc(collection(db, "users_memory/" + currentUser.uid + "/memories"), { memory: content, timestamp: Date.now() });
     userPersonalMemoryCache.push(content);
 }
 
@@ -1889,37 +1592,29 @@ async function saveMessageToFirebase(chatId, userText, aiText) {
     try {
         const nm = currentUser.displayName || (currentUser.email && currentUser.email.split("@")[0]) || "User";
         await addDoc(collection(db, "chat_messages"), {
-            uid: currentUser.uid,
-            userName: nm,
+            uid: currentUser.uid, userName: nm,
             userEmail: currentUser.email || "No Email",
             userPhoto: currentUser.photoURL || "",
-            chatId: chatId,
-            userText: userText,
-            aiText: aiText,
+            chatId: chatId, userText: userText, aiText: aiText,
             timestamp: Date.now()
         });
         loadAllSidebarTopics(false);
-    } catch (e) {
-        console.error("Firebase save error:", e);
-    }
+    } catch (e) { console.error("Firebase save error:", e); }
 }
 
-/* ============= SIDEBAR TOPICS ============= */
+/* ============= SIDEBAR ============= */
 async function loadAllSidebarTopics(isInitialLoad) {
     if (!currentUser) return;
-
     try {
         historyList.innerHTML = "";
         const q = query(collection(db, "chat_messages"));
         const snap = await getDocs(q);
         const map = new Map();
-
         snap.forEach(d => {
             const x = d.data();
             if (x.uid !== currentUser.uid) return;
             const cid = x.chatId;
             if (!cid) return;
-
             if (!map.has(cid)) {
                 map.set(cid, {
                     chatId: cid,
@@ -1930,32 +1625,20 @@ async function loadAllSidebarTopics(isInitialLoad) {
             } else {
                 const c = map.get(cid);
                 const ts = x.timestamp || 0;
-                if (ts < c.firstTimestamp) {
-                    c.firstTimestamp = ts;
-                    c.firstUserText = x.userText || c.firstUserText;
-                }
+                if (ts < c.firstTimestamp) { c.firstTimestamp = ts; c.firstUserText = x.userText || c.firstUserText; }
                 if (ts > c.latestTimestamp) c.latestTimestamp = ts;
             }
         });
-
         const list = Array.from(map.values());
         list.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
         list.forEach(i => addTopicToSidebarUI(i.firstUserText, i.chatId));
-
         if (isInitialLoad) {
             const saved = sessionStorage.getItem(CHAT_SESSION_KEY);
-            if (saved && map.has(saved)) {
-                currentChatId = saved;
-                await loadFullChatSession(saved);
-            } else {
-                startNewChatSession();
-            }
+            if (saved && map.has(saved)) { currentChatId = saved; await loadFullChatSession(saved); }
+            else startNewChatSession();
             isInitialLoadRunning = false;
         }
-    } catch (e) {
-        console.error("Sidebar error:", e);
-        isInitialLoadRunning = false;
-    }
+    } catch (e) { console.error("Sidebar error:", e); isInitialLoadRunning = false; }
 }
 
 function addTopicToSidebarUI(text, chatId) {
@@ -1963,82 +1646,55 @@ function addTopicToSidebarUI(text, chatId) {
     w.classList.add("history-item-wrapper");
     w.dataset.text = text || "";
     if (chatId === currentChatId) w.classList.add("active-chat-topic");
-
     const sp = document.createElement("span");
     sp.classList.add("history-text");
     sp.innerText = text && text.length > 20 ? text.substring(0, 20) + "..." : (text || "Chat");
-
     sp.onclick = () => {
         currentChatId = chatId;
         sessionStorage.setItem(CHAT_SESSION_KEY, chatId);
-        document.querySelectorAll(".history-item-wrapper").forEach(el => {
-            el.classList.remove("active-chat-topic");
-        });
+        document.querySelectorAll(".history-item-wrapper").forEach(el => el.classList.remove("active-chat-topic"));
         w.classList.add("active-chat-topic");
         switchView("chat");
         loadFullChatSession(chatId);
         if (window.innerWidth <= 768) closeSidebar();
     };
-
     const del = document.createElement("button");
     del.classList.add("delete-item-btn");
     del.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-
     del.onclick = async e => {
         e.stopPropagation();
         if (!confirm("Delete this chat?")) return;
-
         const q = query(collection(db, "chat_messages"), where("chatId", "==", chatId));
         const snap = await getDocs(q);
-
         for (const ds of snap.docs) {
-            if (ds.data().uid === currentUser.uid) {
-                await deleteDoc(doc(db, "chat_messages", ds.id));
-            }
+            if (ds.data().uid === currentUser.uid) await deleteDoc(doc(db, "chat_messages", ds.id));
         }
-
-        if (currentChatId === chatId) {
-            sessionStorage.removeItem(CHAT_SESSION_KEY);
-            startNewChatSession();
-        }
-
+        if (currentChatId === chatId) { sessionStorage.removeItem(CHAT_SESSION_KEY); startNewChatSession(); }
         loadAllSidebarTopics(false);
         showToast("Chat deleted", "success");
     };
-
     w.appendChild(sp);
     w.appendChild(del);
     historyList.appendChild(w);
 }
 
-/* ============= LOAD FULL CHAT ============= */
 async function loadFullChatSession(chatId) {
     messagesContainer.innerHTML = "";
     chatHistoryContext = [];
-
     try {
         const q = query(collection(db, "chat_messages"), where("chatId", "==", chatId));
         const snap = await getDocs(q);
         const arr = [];
-
-        snap.forEach(d => {
-            const x = d.data();
-            if (x.uid === currentUser.uid) arr.push(x);
-        });
-
+        snap.forEach(d => { const x = d.data(); if (x.uid === currentUser.uid) arr.push(x); });
         arr.sort((a, b) => a.timestamp - b.timestamp);
-
         for (const x of arr) {
             appendUserMessage(x.userText, x.timestamp - 1000);
             chatHistoryContext.push({ role: "user", content: x.userText });
             appendAIMessage(x.aiText, false, x.userText, x.timestamp);
             chatHistoryContext.push({ role: "assistant", content: x.aiText });
         }
-
         scrollToBottom();
-    } catch (e) {
-        console.error("Load chat error:", e);
-    }
+    } catch (e) { console.error("Load chat error:", e); }
 }
 
 /* ============= KEYBOARD ============= */
@@ -2057,5 +1713,3 @@ document.addEventListener("keydown", e => {
         else if (window.innerWidth <= 768 && !sidebar.classList.contains("collapsed")) closeSidebar();
     }
 });
-
-/* ============= END ============= */
