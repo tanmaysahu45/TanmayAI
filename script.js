@@ -186,10 +186,6 @@ async function loadAllMemories() {
 
     try {
 
-        // -------------------------------
-        // GLOBAL
-        // -------------------------------
-
         const gSnap =
             await getDocs(
                 collection(
@@ -219,10 +215,6 @@ async function loadAllMemories() {
                 }
             }
         );
-
-        // -------------------------------
-        // PERSONAL
-        // -------------------------------
 
         const uSnap =
             await getDocs(
@@ -776,53 +768,6 @@ function appendAIMessage(
         speakBtn
     );
 
-    // =================================================
-    // ADMIN ONLY CONTROLS
-    // =================================================
-
-    if (isCurrentUserAdmin()) {
-
-        const controls =
-            document.createElement(
-                "div"
-            );
-
-        controls.classList.add(
-            "admin-ai-controls"
-        );
-
-        const editBtn =
-            document.createElement(
-                "button"
-            );
-
-        editBtn.className =
-            "admin-edit-answer-btn";
-
-        editBtn.innerHTML =
-            "✏️ Edit";
-
-        editBtn.title =
-            "Correct this AI answer and save it globally";
-
-        editBtn.onclick =
-            () => {
-
-                openEditGlobalAnswer(
-                    questionText,
-                    text
-                );
-            };
-
-        controls.appendChild(
-            editBtn
-        );
-
-        msgDiv.appendChild(
-            controls
-        );
-    }
-
     messagesContainer.appendChild(
         msgDiv
     );
@@ -981,42 +926,6 @@ async function addGlobalInformation(
             "Global information save nahi ho saki."
         );
     }
-}
-
-// =====================================================
-// EDIT AI ANSWER -> GLOBAL
-// =====================================================
-
-function openEditGlobalAnswer(
-    question,
-    oldAnswer
-) {
-
-    if (!isCurrentUserAdmin()) {
-        return;
-    }
-
-    const editedAnswer =
-        prompt(
-            "AI ke jawab ko correct karo.\n\nQuestion:\n" +
-            question +
-            "\n\nCorrect answer:",
-            oldAnswer
-        );
-
-    if (
-        editedAnswer === null ||
-        !editedAnswer.trim()
-    ) {
-        return;
-    }
-
-    const globalKnowledge =
-        `Question: ${question}\nCorrect information/answer: ${editedAnswer.trim()}`;
-
-    addGlobalInformation(
-        globalKnowledge
-    );
 }
 
 // =====================================================
@@ -1344,10 +1253,6 @@ async function sendMessage() {
         currentUser.email?.split("@")[0] ||
         "User";
 
-    // =================================================
-    // NORMAL USER PERSONAL MEMORY
-    // =================================================
-
     const memoryTriggerRegex =
         /^(remember:|remember that|save:|save that|note:|rule:|yaad rakho:|yaad rakhna:|suno:|sun:)\s*(.*)/i;
 
@@ -1363,10 +1268,6 @@ async function sendMessage() {
 
         const learnedContent =
             match[2].trim();
-
-        // -----------------------------------------------
-        // ADMIN
-        // -----------------------------------------------
 
         if (
             isCurrentUserAdmin()
@@ -1435,11 +1336,6 @@ async function sendMessage() {
             }
         }
 
-        // -----------------------------------------------
-        // NORMAL USER
-        // ONLY PERSONAL
-        // -----------------------------------------------
-
         await savePersonalMemory(
             learnedContent
         );
@@ -1466,10 +1362,6 @@ async function sendMessage() {
 
         return;
     }
-
-    // =================================================
-    // AI REQUEST
-    // =================================================
 
     const trimmedContext =
         chatHistoryContext.slice(-8);
@@ -1567,10 +1459,6 @@ async function sendMessage() {
                 true,
                 text
             );
-
-            // -----------------------------------------
-            // MODEL NAME: ADMIN ONLY
-            // -----------------------------------------
 
             if (
                 isCurrentUserAdmin() &&
@@ -2234,25 +2122,6 @@ adminStyle.innerHTML = `
     opacity: 0.65;
     margin: 3px 0 12px 12px;
     font-family: monospace;
-}
-
-.admin-ai-controls {
-    display: flex;
-    gap: 6px;
-    margin-top: 8px;
-}
-
-.admin-edit-answer-btn {
-    border: none;
-    border-radius: 8px;
-    padding: 5px 9px;
-    cursor: pointer;
-    font-size: 12px;
-    background: rgba(100,100,100,.12);
-}
-
-.admin-edit-answer-btn:hover {
-    opacity: .75;
 }
 
 #tanmay-admin-panel {
