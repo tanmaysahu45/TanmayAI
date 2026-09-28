@@ -1,6 +1,6 @@
 /* =========================================================
    TANMAY AI - MAIN SCRIPT
-   Version 7.0
+   Version 8.0
    Made by Tanmay Sahu
    ========================================================= */
 
@@ -190,7 +190,10 @@ const ccAiLine = $("cc-ai-line");
 const ccUserLine = $("cc-user-line");
 const callCaptions = $("call-captions");
 
-console.log("Tanmay AI v7 loaded ✓");
+const ptrIndicator = $("ptr-indicator");
+const ptrText = ptrIndicator ? ptrIndicator.querySelector(".ptr-text") : null;
+
+console.log("Tanmay AI v8 loaded ✓");
 
 /* =========================================================
    GLOBAL STATE
@@ -225,6 +228,115 @@ let callListenRestartTimer = null;
 
 loginContainer.classList.add("hidden");
 appContainer.classList.add("hidden");
+
+/* =========================================================
+   PULL TO REFRESH
+   ========================================================= */
+(function initPullToRefresh() {
+    const THRESHOLD = 90;
+    const MAX_PULL = 130;
+
+    let startY = 0;
+    let currentY = 0;
+    let pulling = false;
+    let triggered = false;
+    let isRefreshingNow = false;
+
+    const isAtTop = () => {
+        return window.scrollY <= 0 && document.documentElement.scrollTop <= 0;
+    };
+
+    const isInteractive = el => {
+        if (!el) return false;
+        return !!el.closest("input, textarea, select, button, .messages-container, .history-container, .study-container, .settings-body, .call-captions");
+    };
+
+    const setText = (t) => {
+        if (ptrText) ptrText.innerText = t;
+    };
+
+    const reset = () => {
+        pulling = false;
+        triggered = false;
+        startY = 0;
+        currentY = 0;
+        if (ptrIndicator) {
+            ptrIndicator.classList.remove("visible");
+            ptrIndicator.classList.remove("refreshing");
+        }
+        document.body.classList.remove("ptr-pulling");
+    };
+
+    document.addEventListener("touchstart", e => {
+        if (isRefreshingNow) return;
+        if (e.touches.length !== 1) return;
+        const target = e.target;
+        if (isInteractive(target)) return;
+        if (!isAtTop()) return;
+        startY = e.touches[0].clientY;
+        pulling = true;
+        triggered = false;
+        if (ptrIndicator) ptrIndicator.classList.add("visible");
+        setText("Pull to refresh");
+    }, { passive: true });
+
+    document.addEventListener("touchmove", e => {
+        if (!pulling || isRefreshingNow) return;
+        currentY = e.touches[0].clientY;
+        const diff = currentY - startY;
+        if (diff <= 0) {
+            if (ptrIndicator) ptrIndicator.classList.remove("visible");
+            return;
+        }
+        if (!isAtTop()) return;
+
+        const limited = Math.min(diff, MAX_PULL);
+
+        if (ptrIndicator) {
+            ptrIndicator.style.transform = `translateX(-50%) translateY(${-70 + limited * 0.7}px)`;
+        }
+
+        if (limited >= THRESHOLD) {
+            if (!triggered) {
+                triggered = true;
+                setText("Release to refresh");
+                if (ptrIndicator) ptrIndicator.classList.add("visible");
+            }
+        } else {
+            if (triggered) {
+                triggered = false;
+                setText("Pull to refresh");
+            }
+        }
+    }, { passive: true });
+
+    document.addEventListener("touchend", () => {
+        if (!pulling || isRefreshingNow) return;
+
+        const diff = currentY - startY;
+        if (triggered && diff >= THRESHOLD) {
+            isRefreshingNow = true;
+            setText("Refreshing...");
+            if (ptrIndicator) {
+                ptrIndicator.classList.add("refreshing");
+                ptrIndicator.style.transform = `translateX(-50%) translateY(0px)`;
+            }
+            setTimeout(() => {
+                window.location.reload();
+            }, 350);
+        } else {
+            if (ptrIndicator) {
+                ptrIndicator.style.transform = "";
+            }
+            reset();
+        }
+    }, { passive: true });
+
+    document.addEventListener("touchcancel", () => {
+        if (ptrIndicator) ptrIndicator.style.transform = "";
+        reset();
+    }, { passive: true });
+})();
 
 /* =========================================================
    UTILITY — PLATFORM DETECT
@@ -596,7 +708,6 @@ headerMenuBtn.addEventListener("click", e => {
         { label: "New Chat", icon: "fa-plus", action: () => { switchView("chat"); startNewChatSession(); } }
     );
 
-    // 👇 DELETE THIS CHAT — naya option
     if (currentChatId) {
         items.push({
             label: "Delete This Chat",
@@ -1455,7 +1566,7 @@ function openImageLightbox(src) {
 }
 
 /* =========================================================
-   CALL MODE — barge-in + live CC + auto loop + Firestore save
+   CALL MODE
    ========================================================= */
 function updateCc(aiText, userText, isInterim) {
     if (!showCc) return;
@@ -1483,7 +1594,6 @@ function clearCc() {
 function startCallMode() {
     if (!currentUser) return showToast("Pehle login karo", "error");
 
-    // 👇 Chat ID ensure — call ki baatein isi thread me save hongi
     if (!currentChatId) {
         currentChatId = "chat_" + Date.now();
         sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
@@ -1511,7 +1621,6 @@ function startCallMode() {
         updateCc(greeting, "", false);
         speakCallReply(greeting);
 
-        // 👇 Greeting bhi Firestore me save
         await saveCallMessageToFirebase("[Voice Call Started]", greeting);
     }, 500);
 }
@@ -1552,7 +1661,6 @@ callCcBtn.addEventListener("click", () => {
     showToast(showCc ? "Captions ON" : "Captions OFF", "info");
 });
 
-/* Setup call recognition — barge-in enabled */
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     callRecognition = new SR();
@@ -1570,7 +1678,6 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     };
 
     callRecognition.onresult = (ev) => {
-        // BARGE-IN
         if (callSpeaking && window.speechSynthesis.speaking) {
             window.speechSynthesis.cancel();
             callSpeaking = false;
@@ -1680,7 +1787,6 @@ async function handleCallUserSpeech(userText) {
             updateCc(data.reply, undefined, false);
             speakCallReply(data.reply);
 
-            // 👇 Call baat-cheet Firestore me save
             await saveCallMessageToFirebase(userText, data.reply);
         } else {
             callStatus.innerText = "No response";
@@ -2111,7 +2217,7 @@ async function saveCallMessageToFirebase(userText, aiText) {
 }
 
 /* =========================================================
-   DELETE CURRENT CHAT (permanent — Firestore + UI)
+   DELETE CURRENT CHAT
    ========================================================= */
 async function deleteCurrentChat() {
     if (!currentUser) return showToast("Pehle login karo", "error");
@@ -2124,7 +2230,6 @@ async function deleteCurrentChat() {
     try {
         showToast("Deleting...", "info");
 
-        // Firestore se saare messages delete karo
         const q = query(
             collection(db, "chat_messages"),
             where("chatId", "==", deletingId)
