@@ -1,6 +1,6 @@
 /* =========================================================
    TANMAY AI - STYLE
-   Version 6.0
+   Version 7.0
    ========================================================= */
 
 * {
@@ -573,6 +573,11 @@ body {
 .msg-dropdown-item i, .header-dropdown-item i { width: 15px; color: var(--text-muted); font-size: 13px; }
 .msg-dropdown-item.danger { color: #ff6b6b; }
 .msg-dropdown-item.danger i { color: #ff6b6b; }
+
+/* 👇 NAYA — Header dropdown ka delete option */
+.header-dropdown-item.danger { color: #ff6b6b; }
+.header-dropdown-item.danger i { color: #ff6b6b; }
+.header-dropdown-item.danger:hover { background: rgba(255, 107, 107, 0.12); }
 
 /* TYPING */
 .typing-message { padding: 14px 18px; }

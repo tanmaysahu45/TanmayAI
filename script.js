@@ -1,6 +1,6 @@
 /* =========================================================
    TANMAY AI - MAIN SCRIPT
-   Version 6.0
+   Version 7.0
    Made by Tanmay Sahu
    ========================================================= */
 
@@ -190,7 +190,7 @@ const ccAiLine = $("cc-ai-line");
 const ccUserLine = $("cc-user-line");
 const callCaptions = $("call-captions");
 
-console.log("Tanmay AI v6 loaded ✓");
+console.log("Tanmay AI v7 loaded ✓");
 
 /* =========================================================
    GLOBAL STATE
@@ -596,9 +596,19 @@ headerMenuBtn.addEventListener("click", e => {
         { label: "New Chat", icon: "fa-plus", action: () => { switchView("chat"); startNewChatSession(); } }
     );
 
+    // 👇 DELETE THIS CHAT — naya option
+    if (currentChatId) {
+        items.push({
+            label: "Delete This Chat",
+            icon: "fa-trash-can",
+            danger: true,
+            action: () => deleteCurrentChat()
+        });
+    }
+
     items.forEach(item => {
         const b = document.createElement("button");
-        b.className = "header-dropdown-item";
+        b.className = "header-dropdown-item" + (item.danger ? " danger" : "");
         b.innerHTML = '<i class="fa-solid ' + item.icon + '"></i> ' + item.label;
         b.onclick = ev => {
             ev.stopPropagation();
@@ -1445,7 +1455,7 @@ function openImageLightbox(src) {
 }
 
 /* =========================================================
-   CALL MODE — barge-in + live CC + auto loop
+   CALL MODE — barge-in + live CC + auto loop + Firestore save
    ========================================================= */
 function updateCc(aiText, userText, isInterim) {
     if (!showCc) return;
@@ -1473,6 +1483,12 @@ function clearCc() {
 function startCallMode() {
     if (!currentUser) return showToast("Pehle login karo", "error");
 
+    // 👇 Chat ID ensure — call ki baatein isi thread me save hongi
+    if (!currentChatId) {
+        currentChatId = "chat_" + Date.now();
+        sessionStorage.setItem(CHAT_SESSION_KEY, currentChatId);
+    }
+
     callModeActive = true;
     callSpeaking = false;
     callHistoryContext = [];
@@ -1489,12 +1505,14 @@ function startCallMode() {
         return;
     }
 
-    // Greeting
-    setTimeout(() => {
+    setTimeout(async () => {
         if (!callModeActive) return;
         const greeting = "Namaste! Main Tanmay AI hoon. Batao, kya madad karun?";
         updateCc(greeting, "", false);
         speakCallReply(greeting);
+
+        // 👇 Greeting bhi Firestore me save
+        await saveCallMessageToFirebase("[Voice Call Started]", greeting);
     }, 500);
 }
 
@@ -1661,11 +1679,15 @@ async function handleCallUserSpeech(userText) {
             callHistoryContext.push({ role: "assistant", content: data.reply });
             updateCc(data.reply, undefined, false);
             speakCallReply(data.reply);
+
+            // 👇 Call baat-cheet Firestore me save
+            await saveCallMessageToFirebase(userText, data.reply);
         } else {
             callStatus.innerText = "No response";
             const fallback = "Sorry, main samajh nahi paaya. Dobara bolo.";
             updateCc(fallback, undefined, false);
             speakCallReply(fallback);
+            await saveCallMessageToFirebase(userText, fallback);
         }
     } catch (e) {
         console.log("Call api error:", e);
@@ -1673,6 +1695,7 @@ async function handleCallUserSpeech(userText) {
         const fallback = "Network problem hai. Thodi der baad try karo.";
         updateCc(fallback, undefined, false);
         speakCallReply(fallback);
+        await saveCallMessageToFirebase(userText, fallback);
     }
 }
 
@@ -2047,12 +2070,84 @@ async function saveMessageToFirebase(chatId, userText, aiText) {
             chatId: chatId,
             userText: userText,
             aiText: aiText,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            source: "chat"
         });
 
         loadAllSidebarTopics(false);
     } catch (e) {
         console.error("Firebase save error:", e);
+    }
+}
+
+/* =========================================================
+   SAVE CALL MESSAGE TO FIREBASE
+   ========================================================= */
+async function saveCallMessageToFirebase(userText, aiText) {
+    if (!currentUser || !currentChatId) return;
+
+    try {
+        const nm =
+            currentUser.displayName ||
+            (currentUser.email && currentUser.email.split("@")[0]) ||
+            "User";
+
+        await addDoc(collection(db, "chat_messages"), {
+            uid: currentUser.uid,
+            userName: nm,
+            userEmail: currentUser.email || "No Email",
+            userPhoto: currentUser.photoURL || "",
+            chatId: currentChatId,
+            userText: userText,
+            aiText: aiText,
+            timestamp: Date.now(),
+            source: "call"
+        });
+
+        loadAllSidebarTopics(false);
+    } catch (e) {
+        console.error("Call save error:", e);
+    }
+}
+
+/* =========================================================
+   DELETE CURRENT CHAT (permanent — Firestore + UI)
+   ========================================================= */
+async function deleteCurrentChat() {
+    if (!currentUser) return showToast("Pehle login karo", "error");
+    if (!currentChatId) return showToast("Koi active chat nahi hai", "info");
+
+    if (!confirm("Ye poori chat permanently delete ho jayegi. Pakka?")) return;
+
+    const deletingId = currentChatId;
+
+    try {
+        showToast("Deleting...", "info");
+
+        // Firestore se saare messages delete karo
+        const q = query(
+            collection(db, "chat_messages"),
+            where("chatId", "==", deletingId)
+        );
+        const snap = await getDocs(q);
+
+        let deleted = 0;
+        for (const ds of snap.docs) {
+            if (ds.data().uid === currentUser.uid) {
+                await deleteDoc(doc(db, "chat_messages", ds.id));
+                deleted++;
+            }
+        }
+
+        sessionStorage.removeItem(CHAT_SESSION_KEY);
+
+        startNewChatSession();
+        await loadAllSidebarTopics(false);
+
+        showToast(deleted + " messages delete ho gaye ✓", "success");
+    } catch (e) {
+        console.error("Delete chat error:", e);
+        showToast("Delete fail: " + e.message, "error");
     }
 }
 
